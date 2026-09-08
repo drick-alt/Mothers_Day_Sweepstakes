@@ -153,7 +153,7 @@ def page_buy(raffle, qty, preview, methods, mock=False):
 <p class="sub">${raffle['ticket_price']:.2f} suggested donation per entry &middot; {raffle['num_prizes']} prizes
 &middot; <span class="badge {raffle['status']}">{raffle['status']}</span></p>
 {_mock_banner(mock)}
-<div class="card"><h2 style="margin-top:0">Prizes</h2>
+<div class="card"><h2 style="margin-top:0">Mother's Day Sweepstakes Drawing</h2>
 <img class="flyer" src="/static/prizes/mothers_day_sweepstakes_drawing_flyer.png"
      alt="Mother's Day Sweepstakes Drawing flyer showing the prize drawing">
 <div class="flyer-note">Prize details:</div>{prizes}</div>
