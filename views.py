@@ -13,6 +13,8 @@ h1{font-size:28px;margin-bottom:6px;color:#fff}
 h2{font-size:20px;margin:24px 0 12px;color:#fff}
 .sub{color:#9aa3b2;margin-bottom:24px}
 .card{background:#171a23;border:1px solid #262b38;border-radius:12px;padding:20px;margin-bottom:16px}
+.flyer{display:block;width:100%;border-radius:14px;border:1px solid #40351f;box-shadow:0 18px 45px rgba(0,0,0,.45);margin:0 0 14px}
+.flyer-note{font-size:13px;color:#cbd5e1;margin-top:8px}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
 .stat{background:#1d2130;border:1px solid #2b3142;border-radius:10px;padding:14px}
 .stat .label{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#8b93a5}
@@ -151,7 +153,10 @@ def page_buy(raffle, qty, preview, methods, mock=False):
 <p class="sub">${raffle['ticket_price']:.2f} suggested donation per entry &middot; {raffle['num_prizes']} prizes
 &middot; <span class="badge {raffle['status']}">{raffle['status']}</span></p>
 {_mock_banner(mock)}
-<div class="card"><h2 style="margin-top:0">Prizes</h2>{prizes}</div>
+<div class="card"><h2 style="margin-top:0">Prizes</h2>
+<img class="flyer" src="/static/prizes/mothers_day_sweepstakes_giveaway_flyer.png"
+     alt="Mother's Day Sweepstakes Giveaway flyer showing the prize drawing">
+<div class="flyer-note">Prize details:</div>{prizes}</div>
 <div class="card"><h2 style="margin-top:0">If you enter with {qty} entry(ies) right now</h2>
 <div class="{_oc(v)}">{pct(v)}</div>
 <p class="sub">chance to win at least one prize</p>
