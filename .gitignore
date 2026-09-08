@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+
+# Local databases and generated mail
+*.db
+*.db.*
+*.db-*
+*.sqlite*
+*.bak
+*.bak-*
+outbox/
+
+# Logs / tunnels
+*.log
+tunnel.log
+server.log
+
+# OS/editor
+.DS_Store
+.vscode/
+.idea/

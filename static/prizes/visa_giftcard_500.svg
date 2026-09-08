@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="380" viewBox="0 0 600 380">
+  <defs>
+    <linearGradient id="card" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1a2a52"/>
+      <stop offset="45%" stop-color="#233868"/>
+      <stop offset="100%" stop-color="#0f1a35"/>
+    </linearGradient>
+    <linearGradient id="chip" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#e8c76a"/>
+      <stop offset="100%" stop-color="#c9a13d"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#000" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <rect x="40" y="30" width="520" height="320" rx="24" fill="url(#card)" filter="url(#shadow)"/>
+
+  <!-- subtle wave pattern -->
+  <path d="M40 220 Q160 190 280 220 T520 220 L560 220 L560 350 L40 350 Z" fill="#ffffff" opacity="0.04"/>
+  <path d="M40 260 Q160 235 280 260 T520 260 L560 260 L560 350 L40 350 Z" fill="#ffffff" opacity="0.05"/>
+
+  <!-- chip -->
+  <rect x="80" y="100" width="60" height="46" rx="7" fill="url(#chip)"/>
+  <line x1="80" y1="116" x2="140" y2="116" stroke="#8a6a20" stroke-width="1.5"/>
+  <line x1="80" y1="130" x2="140" y2="130" stroke="#8a6a20" stroke-width="1.5"/>
+  <line x1="103" y1="100" x2="103" y2="146" stroke="#8a6a20" stroke-width="1.5"/>
+  <line x1="118" y1="100" x2="118" y2="146" stroke="#8a6a20" stroke-width="1.5"/>
+
+  <!-- amount -->
+  <text x="80" y="215" font-family="Georgia, serif" font-size="58" font-weight="700" fill="#f4f7ff">$500</text>
+  <text x="80" y="245" font-family="Arial, sans-serif" font-size="16" letter-spacing="3" fill="#9fb3d9">GIFT CARD</text>
+
+  <!-- card number placeholder -->
+  <text x="80" y="300" font-family="'Courier New', monospace" font-size="20" letter-spacing="4" fill="#7d8fb8">•••• •••• •••• 5000</text>
+
+  <!-- Visa wordmark -->
+  <text x="440" y="300" font-family="Arial, sans-serif" font-size="34" font-style="italic" font-weight="800" fill="#f4f7ff">VISA</text>
+
+  <!-- corner shine -->
+  <path d="M40 30 L200 30 L40 130 Z" fill="#ffffff" opacity="0.06"/>
+</svg>

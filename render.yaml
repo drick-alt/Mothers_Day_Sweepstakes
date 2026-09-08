@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: mothers-day-sweepstakes
+    runtime: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: ./start.sh
+    envVars:
+      - key: RAFFLE_DB_PATH
+        value: /data/raffle.db
+      - key: RAFFLE_BASE_URL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ADMIN_SESSION_SECRET
+        generateValue: true
+      - key: SWEEPS_IP_SALT
+        generateValue: true
+      - key: RAFFLE_MAIL_BACKEND
+        value: preview
+    disk:
+      name: raffle-data
+      mountPath: /data
+      sizeGB: 1
