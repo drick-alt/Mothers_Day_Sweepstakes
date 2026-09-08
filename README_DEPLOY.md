@@ -39,6 +39,7 @@ uvicorn main:app --host 0.0.0.0 --port $PORT
 ADMIN_PASSWORD=<strong password>
 ADMIN_SESSION_SECRET=<32+ random bytes>
 RAFFLE_DB_PATH=/data/raffle.db
+RAFFLE_SEED_ON_INIT=1
 RAFFLE_BASE_URL=https://your-domain.example
 SWEEPS_IP_SALT=<stable random secret>
 ```

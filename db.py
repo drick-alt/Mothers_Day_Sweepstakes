@@ -87,10 +87,106 @@ def connect():
     return conn
 
 
+def _cols(conn, table):
+    return {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
+
+
+def _add_col(conn, table, name, decl):
+    if name not in _cols(conn, table):
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
+
+
+def _ensure_current_schema(conn):
+    """Bring a fresh or old DB up to the current app schema.
+
+    Render creates an empty persistent DB on first boot. SCHEMA handles the
+    original tables; this function applies every later additive migration before
+    optional seed data runs.
+    """
+    for name, decl in [
+        ("sponsor_name", "TEXT DEFAULT ''"),
+        ("sponsor_address", "TEXT DEFAULT ''"),
+        ("sponsor_email", "TEXT DEFAULT ''"),
+        ("start_at", "TEXT"),
+        ("end_at", "TEXT"),
+        ("prize_arv_total", "REAL DEFAULT 0"),
+        ("eligibility_text", "TEXT DEFAULT ''"),
+        ("void_where", "TEXT DEFAULT ''"),
+        ("entry_limit_per_person", "INTEGER DEFAULT 0"),
+        ("amoe_enabled", "INTEGER DEFAULT 1"),
+        ("winner_selection_text", "TEXT DEFAULT ''"),
+        ("rules_published", "INTEGER DEFAULT 0"),
+        ("prize_1_url", "TEXT DEFAULT ''"),
+        ("prize_2_url", "TEXT DEFAULT ''"),
+        ("prize_3_url", "TEXT DEFAULT ''"),
+        ("prize_4_url", "TEXT DEFAULT ''"),
+        ("prize_1_img", "TEXT DEFAULT ''"),
+        ("prize_2_img", "TEXT DEFAULT ''"),
+        ("prize_3_img", "TEXT DEFAULT ''"),
+        ("prize_4_img", "TEXT DEFAULT ''"),
+        ("mail_name", "TEXT DEFAULT ''"),
+        ("mail_attn", "TEXT DEFAULT ''"),
+        ("mail_street", "TEXT DEFAULT ''"),
+        ("mail_city", "TEXT DEFAULT ''"),
+        ("mail_state", "TEXT DEFAULT ''"),
+        ("mail_zip", "TEXT DEFAULT ''"),
+        ("entry_limit_per_household", "INTEGER DEFAULT 0"),
+    ]:
+        _add_col(conn, "raffles", name, decl)
+
+    _add_col(conn, "buyers", "address", "TEXT DEFAULT ''")
+
+    for name, decl in [
+        ("payment_status", "TEXT NOT NULL DEFAULT 'paid'"),
+        ("payment_method", "TEXT NOT NULL DEFAULT 'cash'"),
+        ("provider_ref", "TEXT"),
+        ("memo_code", "TEXT"),
+        ("paid_at", "TEXT"),
+        ("entry_source", "TEXT DEFAULT 'purchase'"),
+    ]:
+        _add_col(conn, "orders", name, decl)
+
+    _add_col(conn, "tickets", "status", "TEXT NOT NULL DEFAULT 'active'")
+    conn.execute("UPDATE tickets SET status='void' WHERE voided=1")
+    conn.execute("""CREATE TABLE IF NOT EXISTS amoe_requests (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        raffle_id INTEGER NOT NULL REFERENCES raffles(id),
+        name TEXT NOT NULL,
+        email TEXT NOT NULL,
+        phone TEXT DEFAULT '',
+        address TEXT DEFAULT '',
+        ip_hash TEXT DEFAULT '',
+        granted INTEGER NOT NULL DEFAULT 0,
+        reason TEXT DEFAULT '',
+        order_id INTEGER REFERENCES orders(id),
+        created_at TEXT NOT NULL,
+        postmark_date TEXT DEFAULT '',
+        received_date TEXT DEFAULT '',
+        recorded_by TEXT DEFAULT ''
+    )""")
+    for name, decl in [
+        ("postmark_date", "TEXT DEFAULT ''"),
+        ("received_date", "TEXT DEFAULT ''"),
+        ("recorded_by", "TEXT DEFAULT ''"),
+    ]:
+        _add_col(conn, "amoe_requests", name, decl)
+
+    conn.execute("""UPDATE orders SET entry_source='comp'
+                    WHERE payment_method='comp'
+                      AND COALESCE(entry_source, 'purchase')='purchase'""")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_amoe_email ON amoe_requests(raffle_id, email)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_amoe_ip ON amoe_requests(raffle_id, ip_hash, created_at)")
+    conn.commit()
+
+
 def init_db():
     conn = connect()
     conn.executescript(SCHEMA)
     conn.commit()
+    _ensure_current_schema(conn)
+    if os.environ.get("RAFFLE_SEED_ON_INIT") == "1":
+        from seed_data import seed_if_empty
+        seed_if_empty(conn)
     conn.close()
 
 

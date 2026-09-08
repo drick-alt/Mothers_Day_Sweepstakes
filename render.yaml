@@ -8,6 +8,8 @@ services:
     envVars:
       - key: RAFFLE_DB_PATH
         value: /data/raffle.db
+      - key: RAFFLE_SEED_ON_INIT
+        value: "1"
       - key: RAFFLE_BASE_URL
         sync: false
       - key: ADMIN_PASSWORD
