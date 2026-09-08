@@ -600,8 +600,7 @@ def npn_banner(rid):
     return f'''<div class="npn">
 <b>Donations are Appreciated</b>
 <span>Must be 18 years old to enter.<br>
-<a href="/enter/{rid}">Enter for free</a> &nbsp;·&nbsp;
-<a href="/rules/{rid}">Official Rules</a></span>
+<a href="/enter/{rid}">Sweepstakes Details</a></span>
 </div>'''
 
 
