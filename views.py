@@ -598,7 +598,7 @@ def npn_banner(rid):
     link to the free entry path and to the Official Rules.
     """
     return f'''<div class="npn">
-<b>NO PURCHASE NECESSARY</b>
+<b>Donations are Appreciated</b>
 <span>Must be 18 years old to enter.<br>
 <a href="/enter/{rid}">Enter for free</a> &nbsp;·&nbsp;
 <a href="/rules/{rid}">Official Rules</a></span>
