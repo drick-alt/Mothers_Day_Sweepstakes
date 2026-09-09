@@ -41,7 +41,7 @@ MOTHERS_DAY_RAFFLE = {
     ),
     "rules_published": 0,
     "prize_1_url": "https://shop.adventureoutdoors.us/manufacturer/smith-wesson/detail/f485f8f9-fe24-4683-9217-38d1ba09652d/efc6952e-9182-44fd-bce8-915d78bb8ccc",
-    "prize_2_url": "https://www.mcmworldwide.com",
+    "prize_2_url": "https://us.mcmworldwide.com/en_US/bags/all-bags/dessau-drawstring-bag-in-visetos/MWDGSDU03CO001.html?cgid=bags-all-bags&sz=96&start=0",
     "prize_3_url": "https://www.giftcards.com/visa-gift-cards",
     "prize_4_url": "",
     "prize_1_img": "/static/prizes/adventure_outdoors_logo.jpg",
