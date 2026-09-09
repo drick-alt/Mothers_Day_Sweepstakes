@@ -40,7 +40,7 @@ MOTHERS_DAY_RAFFLE = {
         "Odds of winning depend on the total number of eligible entries received."
     ),
     "rules_published": 0,
-    "prize_1_url": "https://www.adventureoutdoors.com",
+    "prize_1_url": "https://shop.adventureoutdoors.us/manufacturer/smith-wesson/detail/f485f8f9-fe24-4683-9217-38d1ba09652d/efc6952e-9182-44fd-bce8-915d78bb8ccc",
     "prize_2_url": "https://www.mcmworldwide.com",
     "prize_3_url": "https://www.giftcards.com/visa-gift-cards",
     "prize_4_url": "",
