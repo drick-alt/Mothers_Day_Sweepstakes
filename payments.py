@@ -47,7 +47,7 @@ import hashlib
 import secrets
 
 # --------------------------------------------------------------------------
-# Configuration -- read from env, absent keys put us in MOCK mode
+# Configuration -- read from env. Mock gateway is opt-in only.
 # --------------------------------------------------------------------------
 
 STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
@@ -61,7 +61,7 @@ ZELLE_NAME = os.environ.get("ZELLE_NAME", "Raffle Organizer")
 VENMO_HANDLE = os.environ.get("VENMO_HANDLE", "@raffle-organizer")
 CASHAPP_HANDLE = os.environ.get("CASHAPP_HANDLE", "$raffleorganizer")
 
-MOCK_MODE = not bool(STRIPE_SECRET_KEY)
+MOCK_MODE = os.environ.get("ALLOW_MOCK_PAYMENTS") == "1"
 
 
 # --------------------------------------------------------------------------
@@ -156,6 +156,18 @@ def method_info(key):
     return METHODS.get(key)
 
 
+def method_ready(key):
+    """Whether a method can actually process an order right now."""
+    m = METHODS.get(key)
+    if not m:
+        return False
+    if m["kind"] == "stripe":
+        return MOCK_MODE or bool(STRIPE_SECRET_KEY)
+    if m["kind"] == "paypal":
+        return MOCK_MODE or bool(PAYPAL_CLIENT_ID and PAYPAL_SECRET)
+    return True
+
+
 def is_offline(key):
     m = METHODS.get(key)
     return bool(m) and m["kind"] == "offline"
@@ -171,12 +183,7 @@ def available_methods(include_admin=False):
     for k, m in METHODS.items():
         if m.get("admin_only") and not include_admin:
             continue
-        if m["kind"] == "stripe":
-            ready = MOCK_MODE or bool(STRIPE_SECRET_KEY)
-        elif m["kind"] == "paypal":
-            ready = MOCK_MODE or bool(PAYPAL_CLIENT_ID and PAYPAL_SECRET)
-        else:
-            ready = True  # offline and comp always work
+        ready = method_ready(k)
         out.append({"key": k, **m, "ready": ready})
     return out
 

@@ -436,8 +436,10 @@ def send(to_addr, subject, text, html):
                 tf.write(bytes(msg))
                 tmp = tf.name
             try:
-                p = subprocess.run(f"himalaya message send < {tmp}",
-                                   shell=True, capture_output=True, timeout=90)
+                with open(tmp, "rb") as raw:
+                    p = subprocess.run(["himalaya", "message", "send"],
+                                       stdin=raw, capture_output=True,
+                                       timeout=90, check=False)
                 if p.returncode != 0:
                     return {"sent": False, "backend": "himalaya",
                             "reason": (p.stderr or p.stdout).decode()[:300]}

@@ -57,6 +57,10 @@ def _valid_session_cookie(value):
     return hmac.compare_digest(sig, _sign_session(expiry))
 
 
+def _admin_protected_path(path):
+    return path.startswith("/admin") or path.startswith("/api/raffle/")
+
+
 @app.middleware("http")
 async def require_admin_login(request: Request, call_next):
     """Protect every /admin route except login/logout.
@@ -65,12 +69,14 @@ async def require_admin_login(request: Request, call_next):
     default. If production secrets are missing, admin fails closed with 503.
     """
     path = request.url.path
-    if path.startswith("/admin") and path not in ("/admin/login", "/admin/logout"):
+    if _admin_protected_path(path) and path not in ("/admin/login", "/admin/logout"):
         if not _admin_auth_configured():
             return PlainTextResponse(
                 "Admin authentication is not configured. Set ADMIN_PASSWORD and ADMIN_SESSION_SECRET.",
                 status_code=503)
         if not _valid_session_cookie(request.cookies.get(ADMIN_COOKIE, "")):
+            if path.startswith("/api/"):
+                return JSONResponse({"detail": "Admin login required"}, status_code=401)
             if request.method.upper() == "GET":
                 return RedirectResponse(f"/admin/login?next={quote(path)}", status_code=303)
             return JSONResponse({"detail": "Admin login required"}, status_code=401)
@@ -154,6 +160,8 @@ def buy(raffle_id: int = Form(...), name: str = Form(""),
     # payment_method=comp and hand themselves free tickets.
     if not payments.is_public(payment_method):
         raise HTTPException(403, "That payment method is not available")
+    if not payments.method_ready(payment_method):
+        raise HTTPException(503, "That payment method is not configured yet")
 
     raffle = db.get_raffle(raffle_id)
     if not raffle:
@@ -238,8 +246,13 @@ def pay_offline(code: str):
 
 @app.get("/mock-pay/{code}", response_class=HTMLResponse)
 def mock_pay(code: str, session: str = "", method: str = "card"):
-    """Local simulator standing in for the hosted gateway when no API keys
-    are configured. Lets the whole flow be exercised without live keys."""
+    """Local simulator standing in for the hosted gateway.
+
+    Disabled by default in deployed environments. Enable only for local demos
+    with ALLOW_MOCK_PAYMENTS=1.
+    """
+    if not payments.MOCK_MODE:
+        raise HTTPException(404, "Not found")
     order = db.get_order_by_lookup(code)
     if not order:
         raise HTTPException(404, "Order not found")
@@ -249,7 +262,7 @@ def mock_pay(code: str, session: str = "", method: str = "card"):
 @app.post("/mock-pay/{code}/complete")
 def mock_complete(code: str):
     if not payments.MOCK_MODE:
-        raise HTTPException(400, "mock gateway disabled when live keys are set")
+        raise HTTPException(400, "mock gateway disabled")
     if db.confirm_payment(code, "mock_" + code, source="mock_gateway"):
         _email_receipt(code)
     return RedirectResponse(f"/paid/{code}", status_code=303)

@@ -135,7 +135,8 @@ Before real donations:
 
 1. Attorney review of Official Rules / AMOE.
 2. Stable domain.
-3. Stripe account + live key + webhook secret.
+3. Stripe account + live key + webhook secret. Keep `ALLOW_MOCK_PAYMENTS=0`
+   in production; the mock gateway is for local demos only.
 4. Webhook endpoint:
    ```text
    https://your-domain.example/webhook/stripe
