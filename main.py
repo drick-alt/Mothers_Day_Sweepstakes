@@ -28,6 +28,8 @@ ADMIN_COOKIE = "sweeps_admin"
 ADMIN_SESSION_SECONDS = int(os.environ.get("ADMIN_SESSION_SECONDS", "28800"))
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
 ADMIN_SESSION_SECRET = os.environ.get("ADMIN_SESSION_SECRET", "")
+ADMIN_COOKIE_SECURE = os.environ.get("ADMIN_COOKIE_SECURE", "1") != "0"
+LOGIN_FAILURES = {}
 
 
 def _admin_auth_configured():
@@ -61,6 +63,47 @@ def _admin_protected_path(path):
     return path.startswith("/admin") or path.startswith("/api/raffle/")
 
 
+def _client_ip(request: Request):
+    forwarded = request.headers.get("x-forwarded-for", "")
+    if forwarded:
+        return forwarded.split(",", 1)[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+def _login_limited(ip):
+    now = time.time()
+    failures = [t for t in LOGIN_FAILURES.get(ip, []) if now - t < 900]
+    LOGIN_FAILURES[ip] = failures
+    return len(failures) >= 8
+
+
+def _record_login_failure(ip):
+    now = time.time()
+    failures = [t for t in LOGIN_FAILURES.get(ip, []) if now - t < 900]
+    failures.append(now)
+    LOGIN_FAILURES[ip] = failures
+
+
+def _clear_login_failures(ip):
+    LOGIN_FAILURES.pop(ip, None)
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "same-origin")
+    response.headers.setdefault(
+        "Content-Security-Policy",
+        "default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; "
+        "form-action 'self'; frame-ancestors 'none'; base-uri 'self'"
+    )
+    if request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https":
+        response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+    return response
+
+
 @app.middleware("http")
 async def require_admin_login(request: Request, call_next):
     """Protect every /admin route except login/logout.
@@ -89,11 +132,16 @@ def admin_login_page(next: str = "/admin/6"):
 
 
 @app.post("/admin/login")
-def admin_login(password: str = Form(""), next: str = Form("/admin/6")):
+def admin_login(request: Request, password: str = Form(""), next: str = Form("/admin/6")):
     if not _admin_auth_configured():
         raise HTTPException(503, "Admin authentication is not configured")
+    ip = _client_ip(request)
+    if _login_limited(ip):
+        return HTMLResponse(views.page_admin_login(next, "Too many failed attempts. Try again later."), status_code=429)
     if not hmac.compare_digest(password, ADMIN_PASSWORD):
+        _record_login_failure(ip)
         return HTMLResponse(views.page_admin_login(next, "Incorrect password"), status_code=401)
+    _clear_login_failures(ip)
     if not next.startswith("/admin") or next.startswith("/admin/login"):
         next = "/admin/6"
     resp = RedirectResponse(next, status_code=303)
@@ -102,6 +150,7 @@ def admin_login(password: str = Form(""), next: str = Form("/admin/6")):
         _make_session_cookie(),
         max_age=ADMIN_SESSION_SECONDS,
         httponly=True,
+        secure=ADMIN_COOKIE_SECURE,
         samesite="lax",
     )
     return resp
