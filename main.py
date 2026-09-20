@@ -170,11 +170,49 @@ def home():
     return views.page_home(db.list_raffles(), payments.MOCK_MODE)
 
 
+def _default_public_raffle():
+    """Newest open sweepstakes, falling back to newest record.
+
+    Render production was seeded with the live Mother's Day record as id=6.
+    Older links like /raffle/1 can therefore 404 on production even though the
+    site is healthy. Returning a public default lets stale shared links recover
+    to the current campaign instead of dead-ending.
+    """
+    raffles = db.list_raffles()
+    for raffle in raffles:
+        if raffle.get("status") == "open":
+            return raffle
+    return raffles[0] if raffles else None
+
+
+def _redirect_to_default(prefix):
+    raffle = _default_public_raffle()
+    if not raffle:
+        raise HTTPException(404, "Sweepstakes not found")
+    return RedirectResponse(f"/{prefix}/{raffle['id']}", status_code=303)
+
+
+@app.get("/raffle/current")
+@app.get("/sweepstakes")
+def current_raffle():
+    return _redirect_to_default("raffle")
+
+
+@app.get("/enter/current")
+def current_free_entry():
+    return _redirect_to_default("enter")
+
+
+@app.get("/rules/current")
+def current_rules():
+    return _redirect_to_default("rules")
+
+
 @app.get("/raffle/{rid}", response_class=HTMLResponse)
 def buy_page(rid: int, qty: int = 1):
     raffle = db.get_raffle(rid)
     if not raffle:
-        raise HTTPException(404, "Raffle not found")
+        return _redirect_to_default("raffle")
     qty = max(1, min(qty, 1000))
     # Pool size and revenue are intentionally NOT passed to the buy page --
     # buyers should not see how many tickets are sold or how much was raised.
@@ -442,7 +480,7 @@ def free_entry_form(rid: int, err: str = "", ok: str = ""):
     """
     s = db.get_raffle(rid)
     if not s:
-        raise HTTPException(404, "Sweepstakes not found")
+        return _redirect_to_default("enter")
     allowed, period_msg = sw.entry_allowed(s)
     return views.page_free_entry(s, allowed, period_msg, err, ok)
 
@@ -607,7 +645,7 @@ def official_rules(rid: int):
     every entry surface."""
     s = db.get_raffle(rid)
     if not s:
-        raise HTTPException(404, "Sweepstakes not found")
+        return _redirect_to_default("rules")
     prizes = [s[f"prize_{i}"] for i in range(1, 5) if s[f"prize_{i}"]]
     total = db.total_tickets(rid)
     text = sw.build_rules(s, prizes, total)
@@ -620,7 +658,10 @@ def official_rules_text(rid: int):
     """Plain-text Official Rules -- for printing or mailing."""
     s = db.get_raffle(rid)
     if not s:
-        raise HTTPException(404, "Sweepstakes not found")
+        raffle = _default_public_raffle()
+        if not raffle:
+            raise HTTPException(404, "Sweepstakes not found")
+        return RedirectResponse(f"/rules/{raffle['id']}/text", status_code=303)
     prizes = [s[f"prize_{i}"] for i in range(1, 5) if s[f"prize_{i}"]]
     return sw.build_rules(s, prizes, db.total_tickets(rid))
 

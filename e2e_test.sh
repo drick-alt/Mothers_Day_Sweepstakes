@@ -188,7 +188,7 @@ C=$($CURL -o /dev/null -w "%{http_code}" -X POST $B/buy \
   -d "raffle_id=$RID" -d "name=X" -d "email=x@e2e.com" -d "phone=7705550009" -d "quantity=1" -d "payment_method=bitcoin")
 chk "unknown method rejected" "$C" "400"
 C=$($CURL -o /dev/null -w "%{http_code}" $B/raffle/9999)
-chk "missing raffle 404s" "$C" "404"
+chk "stale/missing raffle redirects to current" "$C" "303"
 
 echo
 echo "=============================================="
