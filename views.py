@@ -153,9 +153,9 @@ def page_buy(raffle, qty, preview, methods, mock=False):
 <p class="sub">${raffle['ticket_price']:.2f} suggested donation per entry &middot; {raffle['num_prizes']} prizes
 &middot; <span class="badge {raffle['status']}">{raffle['status']}</span></p>
 {_mock_banner(mock)}
-<div class="card"><h2 style="margin-top:0">Mother's Day Sweepstakes Drawing</h2>
-<img class="flyer" src="/static/prizes/mothers_day_sweepstakes_drawing_flyer_v3.png"
-     alt="Mother's Day Sweepstakes Drawing flyer showing the prize drawing">
+<div class="card"><h2 style="margin-top:0">{escape(raffle['name'])}</h2>
+<img class="flyer" src="/static/prizes/sweepstakes_drawing_flyer_v5.png"
+     alt="{escape(raffle['name'])} flyer showing the prize drawing">
 <div class="flyer-note">Prize details:</div>{prizes}</div>
 <div class="card"><h2 style="margin-top:0">If you enter with {qty} entry(ies) right now</h2>
 <div class="{_oc(v)}">{pct(v)}</div>
@@ -633,7 +633,7 @@ def page_free_entry(s, allowed, period_msg, err="", ok=""):
     if not allowed:
         closed = f'<div class="errbox">{escape(period_msg)}</div>'
 
-    return shell(f"Free Entry by Mail - {escape(s['name'])}", f'''
+    return shell(f"Free Entry by Mail - {s['name']}", f'''
 <h1>{escape(s['name'])}</h1>
 <div class="period">{escape(period_msg)}</div>
 {closed}
@@ -689,7 +689,7 @@ An administrator must complete these fields before the sweepstakes
 is publicly run.</p>
 </div>'''
 
-    return shell(f"Official Rules - {escape(s['name'])}", f'''
+    return shell(f"Official Rules - {s['name']}", f'''
 <h1>Official Rules</h1>
 {warn}
 <div class="card">
@@ -772,7 +772,7 @@ def page_mailin_log(s, rows, stats):
         body = ('<tr><td colspan="6" style="color:#94a3b8">'
                 'No mail-in entries recorded yet.</td></tr>')
 
-    return shell(f"Mail-In Log - {escape(s['name'])}", f'''
+    return shell(f"Mail-In Log - {s['name']}", f'''
 <h1>Mail-In Entry Log</h1>
 <p class="sub">{escape(s['name'])}</p>
 
@@ -916,7 +916,7 @@ def page_sweeps_details(s, complete, missing, saved=""):
 
     preview = "<br>".join(escape(l) for l in sw.mail_address_lines(s))
 
-    return shell(f"Sweepstakes Details - {escape(s['name'])}", f'''
+    return shell(f"Sweepstakes Details - {s['name']}", f'''
 <h1>Sweepstakes Details</h1>
 <p class="sub">{escape(s['name'])}</p>
 {ok}{warn}
