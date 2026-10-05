@@ -80,6 +80,7 @@ ol{padding-left:22px}ol li{margin:6px 0}
 .period{background:#1e293b;border-left:4px solid #3b82f6;padding:10px 14px;
   border-radius:0 6px 6px 0;margin-bottom:16px;font-size:13px;color:#cbd5e1}
 .errbox{background:#450a0a;border:1px solid #dc2626;border-radius:6px;padding:12px;margin-bottom:14px;color:#fca5a5;font-size:13px}
+.okbox{background:#052e1a;border:1px solid #059669;border-radius:6px;padding:12px;margin-bottom:14px;color:#6ee7b7;font-size:13px}
 @media print{body{background:#fff;color:#000}.noprint{display:none}
 .card{border:1px solid #ccc;background:#fff}td,th{color:#000}}
 """
@@ -397,7 +398,8 @@ def method_badges(methods):
 
 
 def page_admin(raffle, total, pend_t, rev, pend_rev, board, pending, breakdown,
-               winners, comp=None):
+               winners, comp=None, printed=None):
+    printed = printed or {"available": 0, "active": 0, "total": 0}
     rows = "".join(f"<tr><td>{escape(b['buyer_name'])}</td>"
                    f"<td>{method_badges(b.get('methods'))}</td>"
                    f"<td>{b['tickets']}</td>"
@@ -456,6 +458,18 @@ in your banking app, then Approve.</p>
             f'style="margin-top:4px;margin-bottom:14px">')
 
     details_html = f"""<div class="card">
+<h2 style="margin-top:0"><a href="/admin/{raffle['id']}/printed"
+   style="color:#60a5fa">Printed Tickets &rarr;</a></h2>
+<p class="sub">Physical ticket stock. Tickets sit in an <b>available</b> pool
+&mdash; outside the odds and the drawing &mdash; until you sell a stub and
+move it into the live pool.</p>
+<p style="font-size:13px;color:#94a3b8">
+Available: <span style="font-family:ui-monospace,Menlo,monospace;
+color:#fbbf24">{printed['available']}</span> &middot;
+In live pool: <span style="font-family:ui-monospace,Menlo,monospace;
+color:#6ee7b7">{printed['active']}</span></p></div>
+
+<div class="card">
 <h2 style="margin-top:0"><a href="/admin/{raffle['id']}/details"
    style="color:#60a5fa">Sweepstakes Details &rarr;</a></h2>
 <p class="sub">Sponsor info, <b>free-entry mail-in address</b>, entry period,
@@ -611,6 +625,157 @@ Please check back later.</p>
 <p class="sub" style="text-align:center;font-size:13px">
 Questions? Contact
 <a href="mailto:jb@titancybersecurity.com">jb@titancybersecurity.com</a></p>''')
+
+
+def page_printed_tickets(s, counts, rows, show, page, seeded="", moved="",
+                         returned="", err=""):
+    """Printed ticket console -- the Available Pool and the Live Pool.
+
+    The whole point of this screen: stock sits in 'Available' where it counts
+    for NOTHING, and only crosses into the live drawing pool when an admin
+    ticks a stub and submits. Reflect that split clearly so nobody assumes
+    printing tickets already changed the odds.
+    """
+    rid = s["id"]
+    PER = 250
+    total_rows = len(rows)
+    pages = max(1, (total_rows + PER - 1) // PER)
+    page = min(page, pages)
+    window = rows[(page - 1) * PER: page * PER]
+
+    notes = ""
+    if seeded:
+        notes += (f'<div class="okbox">Generated <b>{escape(seeded)}</b> '
+                  f'printed tickets. They are <b>available</b> and are not in '
+                  f'the drawing pool yet.</div>')
+    if moved:
+        notes += (f'<div class="okbox">Moved <b>{escape(moved)}</b> ticket(s) '
+                  f'into the LIVE pool. They are now in the drawing.</div>')
+    if returned:
+        notes += (f'<div class="okbox">Returned <b>{escape(returned)}</b> '
+                  f'ticket(s) to available.</div>')
+    if err:
+        notes += f'<div class="errbox">{escape(err)}</div>'
+
+    if counts["total"] == 0:
+        body = f'''
+<div class="card">
+<h2 style="margin-top:0">No printed stock yet</h2>
+<p class="sub">Generate physical tickets. They are created in an
+<b>available</b> state &mdash; counted nowhere, drawn never &mdash; until you
+sell a stub and move it into the live pool.</p>
+<form method="post" action="/admin/{rid}/printed/seed">
+<label>How many tickets to print?</label>
+<input name="count" type="number" value="1100" min="1" max="100000">
+<button type="submit">Generate printed tickets</button></form></div>'''
+        return shell(f"Printed Tickets - {s['name']}", notes + body,
+                     nav=f'<div class="nav"><a href="/admin/{rid}">&larr; Admin</a></div>')
+
+    is_avail = show == "available"
+    action = "activate" if is_avail else "return"
+    btn = ("Move selected to LIVE pool &rarr;" if is_avail
+           else "&larr; Return selected to available")
+    btn_class = "ok" if is_avail else "danger"
+
+    trs = ""
+    for r in window:
+        tn = escape(r["ticket_number"])
+        cc = escape(r.get("check_code") or "")
+        extra = ""
+        if not is_avail:
+            who = escape(r.get("buyer_name") or "")
+            when = escape((r.get("activated_at") or "")[:16].replace("T", " "))
+            note = escape(r.get("holder_note") or "")
+            extra = f"<td>{who}</td><td>{when}</td><td>{note}</td>"
+        trs += (f'<tr><td><input type="checkbox" name="ticket_number" '
+                f'value="{tn}" style="width:auto"></td>'
+                f'<td style="font-family:ui-monospace,Menlo,monospace;'
+                f'font-size:15px">{tn}</td>'
+                f'<td style="font-family:ui-monospace,Menlo,monospace;'
+                f'color:#8b93a5">{cc}</td>{extra}</tr>')
+
+    head = ('<th style="width:34px"></th><th>Ticket #</th><th>Check code</th>')
+    if not is_avail:
+        head += "<th>Holder</th><th>Moved at</th><th>Note</th>"
+
+    pager = ""
+    if pages > 1:
+        links = []
+        for p in range(1, pages + 1):
+            if p == page:
+                links.append(f'<b>{p}</b>')
+            else:
+                links.append(f'<a href="/admin/{rid}/printed'
+                             f'?show={show}&page={p}">{p}</a>')
+        pager = ('<p class="sub" style="font-size:13px">Page: '
+                 + " &middot; ".join(links) + "</p>")
+
+    holder = ""
+    if is_avail:
+        holder = '''
+<div class="grid" style="margin-top:4px">
+<div><label>Sold to (optional)</label>
+<input name="holder_name" placeholder="Name on the stub"></div>
+<div><label>Email (optional)</label>
+<input name="holder_email" placeholder="for winner contact"></div>
+<div><label>Phone (optional)</label>
+<input name="holder_phone" placeholder="for winner contact"></div>
+<div><label>Note (optional)</label>
+<input name="note" placeholder="e.g. church table, Oct 30"></div>
+</div>
+<p class="sub" style="font-size:12px;margin-top:6px">Leave blank for an
+anonymous bearer ticket &mdash; the stub itself is then the only proof of
+entry, so the holder must keep it to claim a prize.</p>'''
+
+    body = f'''
+<h1>Printed Tickets</h1>
+<p class="sub">{escape(s['name'])}</p>
+{notes}
+
+<div class="grid">
+<div class="stat"><div class="label">Available (not in pool)</div>
+<div class="value">{counts['available']}</div></div>
+<div class="stat"><div class="label">In live pool</div>
+<div class="value" style="color:#4ade80">{counts['active']}</div></div>
+<div class="stat"><div class="label">Printed total</div>
+<div class="value">{counts['total']}</div></div>
+</div>
+
+<div class="info" style="margin-top:16px">
+<b>Available</b> tickets are not entries. They are excluded from the pool,
+the odds, the drum and the drawing until you move them. Printed numbers share
+the same sequence as tickets bought on the site, so no number is ever issued
+twice.</div>
+
+<div class="card">
+<h2 style="margin-top:0">
+<a href="/admin/{rid}/printed?show=available"
+   style="color:{'#fff' if is_avail else '#60a5fa'}">Available pool
+   ({counts['available']})</a>
+&nbsp;|&nbsp;
+<a href="/admin/{rid}/printed?show=active"
+   style="color:{'#fff' if not is_avail else '#60a5fa'}">Live pool
+   ({counts['active']})</a></h2>
+<p class="sub">Showing {len(window)} of {total_rows}.
+<a href="/admin/{rid}/printed.csv?show={show}">Download CSV</a></p>
+{pager}
+<form method="post" action="/admin/{rid}/printed/{action}">
+{holder}
+<table><tr>{head}</tr>{trs}</table>
+<button type="submit" class="{btn_class}">{btn}</button>
+</form>
+{pager}
+</div>
+
+<div class="card">
+<h2 style="margin-top:0">Add more stock</h2>
+<form method="post" action="/admin/{rid}/printed/seed">
+<label>How many additional tickets?</label>
+<input name="count" type="number" value="100" min="1" max="100000">
+<button type="submit">Generate</button></form></div>'''
+
+    return shell(f"Printed Tickets - {s['name']}", body,
+                 nav=f'<div class="nav"><a href="/admin/{rid}">&larr; Admin</a></div>')
 
 
 def npn_banner(rid):

@@ -469,6 +469,94 @@ def receipt(code: str):
     return views.page_receipt(order, o, marginal, db.get_winners(rid), inst)
 
 
+@app.post("/admin/{rid}/printed/seed")
+def admin_seed_printed(rid: int, count: int = Form(1100)):
+    """Generate physical ticket stock at status='available'.
+
+    Stock is inert: it is counted nowhere and cannot be drawn until an admin
+    moves individual stubs into the live pool.
+    """
+    try:
+        made = db.seed_printed_tickets(rid, count)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return RedirectResponse(
+        f"/admin/{rid}/printed?seeded={len(made)}", status_code=303)
+
+
+@app.get("/admin/{rid}/printed", response_class=HTMLResponse)
+def admin_printed(rid: int, seeded: str = "", moved: str = "",
+                  returned: str = "", err: str = "", show: str = "available",
+                  page: int = 1):
+    """Printed ticket console: available stock + what has gone live."""
+    s = db.get_raffle(rid)
+    if not s:
+        raise HTTPException(404, "Sweepstakes not found")
+    show = show if show in ("available", "active") else "available"
+    return views.page_printed_tickets(
+        s, db.printed_counts(rid), db.printed_stock(rid, show), show,
+        max(1, page), seeded, moved, returned, err)
+
+
+@app.post("/admin/{rid}/printed/activate")
+async def admin_activate_printed(rid: int, request: Request):
+    """Move the ticked stubs into the LIVE pool.
+
+    Reads the raw form so the checkbox list arrives as a repeated field,
+    which is what a plain HTML form posts.
+    """
+    form = await request.form()
+    numbers = [v for v in form.getlist("ticket_number") if str(v).strip()]
+    if not numbers:
+        return RedirectResponse(
+            f"/admin/{rid}/printed?err=Select+at+least+one+ticket",
+            status_code=303)
+    try:
+        moved = db.activate_printed_tickets(
+            rid, numbers,
+            holder_name=str(form.get("holder_name", "")),
+            holder_email=str(form.get("holder_email", "")),
+            holder_phone=str(form.get("holder_phone", "")),
+            note=str(form.get("note", "")))
+    except ValueError as e:
+        return RedirectResponse(
+            f"/admin/{rid}/printed?err={quote(str(e))}", status_code=303)
+    return RedirectResponse(
+        f"/admin/{rid}/printed?moved={len(moved)}", status_code=303)
+
+
+@app.post("/admin/{rid}/printed/return")
+async def admin_return_printed(rid: int, request: Request):
+    """Pull mistakenly-activated stubs back out of the live pool."""
+    form = await request.form()
+    numbers = [v for v in form.getlist("ticket_number") if str(v).strip()]
+    if not numbers:
+        return RedirectResponse(
+            f"/admin/{rid}/printed?show=active&err=Select+at+least+one+ticket",
+            status_code=303)
+    try:
+        n = db.return_printed_to_available(rid, numbers)
+    except ValueError as e:
+        return RedirectResponse(
+            f"/admin/{rid}/printed?show=active&err={quote(str(e))}",
+            status_code=303)
+    return RedirectResponse(
+        f"/admin/{rid}/printed?show=active&returned={n}", status_code=303)
+
+
+@app.get("/admin/{rid}/printed.csv", response_class=PlainTextResponse)
+def admin_printed_csv(rid: int, show: str = "available"):
+    """Export stock for the print shop (numbers + check codes)."""
+    show = show if show in ("available", "active") else "available"
+    rows = db.printed_stock(rid, show)
+    out = ["ticket_number,check_code,status,activated_at,holder"]
+    for r in rows:
+        holder = (r.get("buyer_name") or "").replace('"', "'")
+        out.append(f'{r["ticket_number"]},{r.get("check_code") or ""},'
+                   f'{r["status"]},{r.get("activated_at") or ""},"{holder}"')
+    return "\n".join(out)
+
+
 @app.get("/lookup", response_class=HTMLResponse)
 def lookup(code: str = ""):
     if code:
@@ -495,7 +583,8 @@ def admin(rid: int):
     return views.page_admin(raffle, total, db.pending_tickets(rid),
                             db.revenue(rid), db.pending_revenue(rid), board,
                             db.pending_orders(rid), db.payment_breakdown(rid),
-                            db.get_winners(rid), db.comp_stats(rid))
+                            db.get_winners(rid), db.comp_stats(rid),
+                            db.printed_counts(rid))
 
 
 @app.post("/admin/confirm/{code}")

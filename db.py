@@ -147,6 +147,19 @@ def _ensure_current_schema(conn):
         _add_col(conn, "orders", name, decl)
 
     _add_col(conn, "tickets", "status", "TEXT NOT NULL DEFAULT 'active'")
+
+    # Printed/physical ticket support.
+    #   source     'online'  -- created by the normal /buy flow
+    #              'printed' -- pre-generated physical ticket stock
+    #   check_code anti-counterfeit code printed beside the number on the stub
+    # A printed ticket sits at status='available' (counted nowhere, drawn
+    # never) until an admin sells it and moves it into the live pool.
+    _add_col(conn, "tickets", "source", "TEXT NOT NULL DEFAULT 'online'")
+    _add_col(conn, "tickets", "check_code", "TEXT DEFAULT ''")
+    _add_col(conn, "tickets", "activated_at", "TEXT")
+    _add_col(conn, "tickets", "holder_note", "TEXT DEFAULT ''")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_tickets_source "
+                 "ON tickets(raffle_id, source, status)")
     conn.execute("UPDATE tickets SET status='void' WHERE voided=1")
     conn.execute("""CREATE TABLE IF NOT EXISTS amoe_requests (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -782,11 +795,13 @@ def drum_list(rid):
     """
     conn = connect()
     rows = conn.execute(
-        """SELECT t.ticket_number,b.name buyer_name,b.phone buyer_phone,
+        """SELECT t.ticket_number,COALESCE(b.name,'(bearer)') buyer_name,
+                  b.phone buyer_phone,
                   b.email buyer_email,o.receipt_id,o.payment_method,
+                  t.source,
                   CASE WHEN o.payment_method='comp' THEN 1 ELSE 0 END is_comp
-           FROM tickets t JOIN buyers b ON b.id=t.buyer_id
-           JOIN orders o ON o.id=t.order_id
+           FROM tickets t LEFT JOIN buyers b ON b.id=t.buyer_id
+           LEFT JOIN orders o ON o.id=t.order_id
            WHERE t.raffle_id=? AND t.status='active'
            ORDER BY t.ticket_number""", (rid,)).fetchall()
     conn.close()
@@ -806,12 +821,13 @@ def leaderboard(rid):
     """
     conn = connect()
     rows = conn.execute(
-        """SELECT b.id buyer_id, b.name buyer_name, COUNT(*) tickets,
+        """SELECT b.id buyer_id, COALESCE(b.name,'(bearer)') buyer_name,
+                  COUNT(*) tickets,
                   GROUP_CONCAT(DISTINCT o.payment_method) methods,
                   GROUP_CONCAT(DISTINCT o.entry_source) sources
            FROM tickets t
-           JOIN buyers b ON b.id = t.buyer_id
-           JOIN orders o ON o.id = t.order_id
+           LEFT JOIN buyers b ON b.id = t.buyer_id
+           LEFT JOIN orders o ON o.id = t.order_id
            WHERE t.raffle_id=? AND t.status='active'
            GROUP BY b.id ORDER BY tickets DESC, b.name""", (rid,)).fetchall()
     conn.close()
@@ -852,6 +868,234 @@ def order_events(lookup_code):
     return [dict(r) for r in rows]
 
 
+# ------------------------------------------------------- printed tickets
+#
+# Physical ticket stock shares ONE number sequence with online sales, so a
+# ticket number means the same thing no matter where it came from. The
+# UNIQUE(raffle_id, ticket_number) constraint is what guarantees a printed
+# stub can never collide with a number issued by /buy.
+#
+# Lifecycle:
+#   available -> (admin sells the stub, ticks it, moves it) -> active
+# 'available' is counted NOWHERE: not in total_tickets, not in the odds, not
+# in drum_list, not in draw_winners. Printing 1,100 tickets therefore does
+# not change a single entrant's odds until the stubs are actually sold.
+
+PRINTED_STOCK_BUYER = "Printed Ticket Stock (unsold)"
+PRINTED_BEARER_BUYER = "Printed Ticket Bearer"
+
+
+def _next_ticket_number(conn, rid):
+    """Highest ticket number issued so far for this raffle.
+
+    Uses MAX(number) rather than COUNT(*). Printed stock and online sales
+    draw from one shared sequence, and COUNT silently collides if any row is
+    ever removed, while MAX does not.
+    """
+    row = conn.execute(
+        "SELECT COALESCE(MAX(CAST(ticket_number AS INTEGER)),0) m "
+        "FROM tickets WHERE raffle_id=?", (rid,)).fetchone()
+    return int(row["m"] or 0)
+
+
+def _stock_holder(conn, rid, name, method, status):
+    """Find-or-create a synthetic buyer+order to own printed tickets.
+
+    tickets.order_id and tickets.buyer_id are both NOT NULL, so unsold stock
+    has to point somewhere. These placeholder rows are deliberately kept out
+    of revenue (amount 0) and out of the pending-approval queue (a payment
+    status of neither 'paid' nor 'pending').
+    """
+    row = conn.execute(
+        """SELECT o.id oid, o.buyer_id bid FROM orders o
+           WHERE o.raffle_id=? AND o.payment_method=? LIMIT 1""",
+        (rid, method)).fetchone()
+    if row:
+        return row["bid"], row["oid"]
+    bid = conn.execute(
+        "INSERT INTO buyers (name,email,phone,created_at) VALUES (?,'','',?)",
+        (name, now())).lastrowid
+    oid = conn.execute(
+        """INSERT INTO orders (raffle_id,buyer_id,receipt_id,lookup_code,
+           quantity,amount_paid,payment_status,payment_method,entry_source,
+           created_at) VALUES (?,?,?,?,0,0,?,?,'printed',?)""",
+        (rid, bid, "STOCK-" + gen_code(8), gen_code(8), status, method,
+         now())).lastrowid
+    return bid, oid
+
+
+def printed_counts(rid):
+    """How much printed stock exists, and where it sits."""
+    conn = connect()
+    rows = conn.execute(
+        "SELECT status, COUNT(*) c FROM tickets "
+        "WHERE raffle_id=? AND source='printed' GROUP BY status",
+        (rid,)).fetchall()
+    conn.close()
+    out = {r["status"]: r["c"] for r in rows}
+    return {"available": out.get("available", 0),
+            "active": out.get("active", 0),
+            "void": out.get("void", 0),
+            "total": sum(out.values())}
+
+
+def seed_printed_tickets(rid, count, with_check_codes=True):
+    """Generate `count` physical tickets at status='available'.
+
+    Numbers continue the raffle's shared sequence, so these are the same kind
+    of number /buy issues. Nothing here touches the live pool or the odds.
+    """
+    count = int(count)
+    if count < 1 or count > 100000:
+        raise ValueError("count must be between 1 and 100000")
+
+    conn = connect()
+    try:
+        raffle = conn.execute("SELECT * FROM raffles WHERE id=?",
+                              (rid,)).fetchone()
+        if not raffle:
+            raise ValueError("raffle not found")
+        if conn.execute("SELECT COUNT(*) c FROM draws WHERE raffle_id=?",
+                        (rid,)).fetchone()["c"]:
+            raise ValueError("cannot add stock after the drawing has been run")
+
+        bid, oid = _stock_holder(conn, rid, PRINTED_STOCK_BUYER,
+                                 "printed_stock", "stock")
+        start = _next_ticket_number(conn, rid)
+        made = []
+        for i in range(count):
+            tn = f"{start + i + 1:06d}"
+            cc = gen_code(5) if with_check_codes else ""
+            conn.execute(
+                """INSERT INTO tickets (raffle_id,order_id,buyer_id,
+                   ticket_number,status,source,check_code,created_at)
+                   VALUES (?,?,?,?,'available','printed',?,?)""",
+                (rid, oid, bid, tn, cc, now()))
+            made.append({"ticket_number": tn, "check_code": cc})
+        log_event(conn, oid, "printed_stock_created", f"count={count}")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        conn.close()
+        raise
+    conn.close()
+    return made
+
+
+def printed_stock(rid, status="available", limit=5000):
+    """List printed tickets in a given state, for the admin selector."""
+    conn = connect()
+    rows = conn.execute(
+        """SELECT t.ticket_number,t.check_code,t.status,t.activated_at,
+                  t.holder_note,b.name buyer_name
+           FROM tickets t LEFT JOIN buyers b ON b.id=t.buyer_id
+           WHERE t.raffle_id=? AND t.source='printed' AND t.status=?
+           ORDER BY CAST(t.ticket_number AS INTEGER) LIMIT ?""",
+        (rid, status, limit)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def activate_printed_tickets(rid, numbers, holder_name="", holder_email="",
+                             holder_phone="", note=""):
+    """Move sold printed tickets from 'available' into the LIVE pool.
+
+    Only flips rows that are BOTH source='printed' AND status='available',
+    so a double submit is a no-op, an online ticket can never be caught up in
+    it, and a voided ticket can never be resurrected.
+    """
+    nums = [str(n).strip() for n in numbers if str(n).strip()]
+    if not nums:
+        raise ValueError("no ticket numbers supplied")
+
+    conn = connect()
+    try:
+        raffle = conn.execute("SELECT * FROM raffles WHERE id=?",
+                              (rid,)).fetchone()
+        if not raffle:
+            raise ValueError("raffle not found")
+        if conn.execute("SELECT COUNT(*) c FROM draws WHERE raffle_id=?",
+                        (rid,)).fetchone()["c"]:
+            raise ValueError("the drawing has already been run")
+
+        q = ",".join("?" * len(nums))
+        eligible = [r["ticket_number"] for r in conn.execute(
+            f"""SELECT ticket_number FROM tickets WHERE raffle_id=?
+                AND source='printed' AND status='available'
+                AND ticket_number IN ({q})""", (rid, *nums)).fetchall()]
+        if not eligible:
+            raise ValueError("none of those tickets are available to move")
+
+        # Each activation batch becomes a real, auditable order so the sale
+        # shows up in revenue exactly like any other paid entry.
+        if holder_name.strip():
+            bid = conn.execute(
+                "INSERT INTO buyers (name,email,phone,created_at) "
+                "VALUES (?,?,?,?)",
+                (holder_name.strip(), holder_email.strip(),
+                 holder_phone.strip(), now())).lastrowid
+        else:
+            bid, _ = _stock_holder(conn, rid, PRINTED_BEARER_BUYER,
+                                   "printed_bearer", "stock")
+
+        amount = len(eligible) * (raffle["ticket_price"] or 0)
+        oid = conn.execute(
+            """INSERT INTO orders (raffle_id,buyer_id,receipt_id,lookup_code,
+               quantity,amount_paid,payment_status,payment_method,
+               entry_source,paid_at,created_at)
+               VALUES (?,?,?,?,?,?,'paid','printed','printed',?,?)""",
+            (rid, bid, "R-" + gen_code(10), gen_code(8), len(eligible),
+             amount, now(), now())).lastrowid
+
+        conn.execute(
+            f"""UPDATE tickets SET status='active', order_id=?, buyer_id=?,
+                activated_at=?, holder_note=?
+                WHERE raffle_id=? AND source='printed' AND status='available'
+                AND ticket_number IN ({q})""",
+            (oid, bid, now(), note.strip(), rid, *nums))
+        log_event(conn, oid, "printed_tickets_activated",
+                  f"count={len(eligible)} numbers={','.join(eligible)}")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        conn.close()
+        raise
+    conn.close()
+    return eligible
+
+
+def return_printed_to_available(rid, numbers):
+    """Undo an activation (sale fell through / wrong stub ticked).
+
+    Refuses once the drawing has run -- pulling a ticket out of a pool that
+    has already been drawn from would invalidate the draw.
+    """
+    nums = [str(n).strip() for n in numbers if str(n).strip()]
+    if not nums:
+        raise ValueError("no ticket numbers supplied")
+    conn = connect()
+    try:
+        if conn.execute("SELECT COUNT(*) c FROM draws WHERE raffle_id=?",
+                        (rid,)).fetchone()["c"]:
+            raise ValueError("the drawing has already been run")
+        bid, oid = _stock_holder(conn, rid, PRINTED_STOCK_BUYER,
+                                 "printed_stock", "stock")
+        q = ",".join("?" * len(nums))
+        cur = conn.execute(
+            f"""UPDATE tickets SET status='available', order_id=?, buyer_id=?,
+                activated_at=NULL, holder_note=''
+                WHERE raffle_id=? AND source='printed' AND status='active'
+                AND ticket_number IN ({q})""", (oid, bid, rid, *nums))
+        n = cur.rowcount
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        conn.close()
+        raise
+    conn.close()
+    return n
+
+
 # ------------------------------------------------------------------ draw
 
 def draw_winners(rid):
@@ -863,8 +1107,8 @@ def draw_winners(rid):
 
     raffle = conn.execute("SELECT * FROM raffles WHERE id=?", (rid,)).fetchone()
     pool = [dict(p) for p in conn.execute(
-        """SELECT t.id,t.ticket_number,b.name buyer_name
-           FROM tickets t JOIN buyers b ON b.id=t.buyer_id
+        """SELECT t.id,t.ticket_number,COALESCE(b.name,'(bearer)') buyer_name
+           FROM tickets t LEFT JOIN buyers b ON b.id=t.buyer_id
            WHERE t.raffle_id=? AND t.status='active'""", (rid,)).fetchall()]
     if not pool:
         conn.close()
