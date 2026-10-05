@@ -595,6 +595,24 @@ def page_winners(raffle, winners):
 # SWEEPSTAKES COMPLIANCE VIEWS
 # ==========================================================================
 
+def page_on_hold():
+    """Shown on every public route while the campaign is under review.
+
+    Says nothing about prizes, dates, odds, or entry. A holding notice that
+    still advertised the promotion would defeat the purpose of the hold.
+    """
+    return shell("Sweepstakes Unavailable", '''
+<div class="card" style="text-align:center;padding:48px 24px">
+<h1 style="margin-bottom:12px">This sweepstakes is not currently available</h1>
+<p class="sub" style="margin-bottom:0">
+The promotion is being finalized and is temporarily offline.<br>
+Please check back later.</p>
+</div>
+<p class="sub" style="text-align:center;font-size:13px">
+Questions? Contact
+<a href="mailto:jb@titancybersecurity.com">jb@titancybersecurity.com</a></p>''')
+
+
 def npn_banner(rid):
     """NO PURCHASE NECESSARY banner.
 

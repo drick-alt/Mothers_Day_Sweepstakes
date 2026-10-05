@@ -32,6 +32,28 @@ ADMIN_COOKIE_SECURE = os.environ.get("ADMIN_COOKIE_SECURE", "1") != "0"
 LOGIN_FAILURES = {}
 
 
+# ------------------------------------------------------------- public hold
+
+def _public_hold():
+    """Is the public campaign withheld pending legal review?
+
+    Read per-request (not cached at import) so the hold can be lifted by
+    flipping the env var and restarting, without a code change.
+    """
+    return os.environ.get("SWEEPS_PUBLIC_HOLD", "0") == "1"
+
+
+def _hold_exempt(path):
+    """Paths that stay reachable while the public campaign is on hold.
+
+    Admin must keep working so the sweepstakes can be edited and reviewed,
+    and /static must stay up so the admin console renders.
+    """
+    return (path.startswith("/admin")
+            or path.startswith("/static")
+            or path in ("/healthz", "/docs", "/openapi.json", "/favicon.ico"))
+
+
 def _admin_auth_configured():
     return bool(ADMIN_PASSWORD and ADMIN_SESSION_SECRET)
 
@@ -164,6 +186,34 @@ def admin_logout():
 
 
 # ---------------------------------------------------------------- public
+
+@app.middleware("http")
+async def public_hold_gate(request: Request, call_next):
+    """Withhold the entire public campaign while it is under legal review.
+
+    Deliberately all-or-nothing. Hiding only the Official Rules or only the
+    free-entry (AMOE) link while the donation form stays up would leave a
+    paid promotion running without its no-purchase-necessary path, which is
+    worse than showing nothing. Admin stays fully reachable.
+
+    Registered AFTER require_admin_login so it wraps it and runs FIRST --
+    otherwise a held public page would redirect to the admin login instead
+    of returning the holding notice.
+    """
+    if _public_hold() and not _hold_exempt(request.url.path):
+        if request.url.path.startswith("/api/"):
+            return JSONResponse(
+                {"detail": "This sweepstakes is not currently available."},
+                status_code=503)
+        return HTMLResponse(views.page_on_hold(), status_code=503)
+    return await call_next(request)
+
+
+@app.get("/healthz", response_class=PlainTextResponse)
+def healthz():
+    """Unauthenticated liveness probe that survives the public hold."""
+    return "ok"
+
 
 @app.get("/", response_class=HTMLResponse)
 def home():
