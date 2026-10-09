@@ -782,13 +782,12 @@ def npn_banner(rid):
     """NO PURCHASE NECESSARY banner.
 
     This must appear on every page where a purchase can be initiated,
-    BEFORE the point of purchase -- not in a footer. It normally carries
-    the link to the free entry path and to the Official Rules.
+    BEFORE the point of purchase -- not in a footer. The details link is
+    intentionally hidden while the details are being updated.
     """
     return '''<div class="npn">
 <b>Donations are Appreciated</b>
-<span>Must be 18 years old to enter.<br>
-<span aria-disabled="true" style="color:#9ca3af;cursor:not-allowed">Sweepstakes Details temporarily unavailable</span></span>
+<span>Must be 18 years old to enter.</span>
 </div>'''
 
 
