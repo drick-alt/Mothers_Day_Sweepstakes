@@ -155,7 +155,7 @@ def page_buy(raffle, qty, preview, methods, mock=False):
 &middot; <span class="badge {raffle['status']}">{raffle['status']}</span></p>
 {_mock_banner(mock)}
 <div class="card"><h2 style="margin-top:0">{escape(raffle['name'])}</h2>
-<img class="flyer" src="/static/prizes/sweepstakes_drawing_flyer_v9.png"
+<img class="flyer" src="/static/prizes/sweepstakes_drawing_flyer_v5.png"
      alt="{escape(raffle['name'])} flyer showing the prize drawing">
 <div class="flyer-note">Prize details:</div>{prizes}</div>
 <div class="card"><h2 style="margin-top:0">If you enter with {qty} entry(ies) right now</h2>
