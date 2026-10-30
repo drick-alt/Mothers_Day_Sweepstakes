@@ -56,10 +56,10 @@ PAYPAL_CLIENT_ID = os.environ.get("PAYPAL_CLIENT_ID", "")
 PAYPAL_SECRET = os.environ.get("PAYPAL_SECRET", "")
 
 # Offline payment destinations -- shown to the buyer as instructions
-ZELLE_HANDLE = os.environ.get("ZELLE_HANDLE", "raffle@example.com")
-ZELLE_NAME = os.environ.get("ZELLE_NAME", "Raffle Organizer")
+ZELLE_HANDLE = os.environ.get("ZELLE_HANDLE", "ttgmcatlanta@gmail.com")
+ZELLE_NAME = os.environ.get("ZELLE_NAME", "Trained To Go M.C.")
 VENMO_HANDLE = os.environ.get("VENMO_HANDLE", "@raffle-organizer")
-CASHAPP_HANDLE = os.environ.get("CASHAPP_HANDLE", "$raffleorganizer")
+CASHAPP_HANDLE = os.environ.get("CASHAPP_HANDLE", "$ttgmcatlanta2012")
 
 MOCK_MODE = os.environ.get("ALLOW_MOCK_PAYMENTS") == "1"
 
@@ -98,12 +98,11 @@ METHODS = {
         "auto": True,
     },
     "cashapp": {
-        "label": "Cash App Pay",
+        "label": "Cash App",
         "icon": "cashapp",
-        "kind": "stripe",
-        "stripe_types": ["cashapp"],
-        "note": "US only. Native Stripe payment method.",
-        "auto": True,
+        "kind": "offline",
+        "note": "Manual confirmation via Cash App. Use the memo code.",
+        "auto": False,
     },
     "venmo": {
         "label": "Venmo",
@@ -401,6 +400,21 @@ def offline_instructions(method_key, order):
             "warning": ("Zelle has no merchant API, so confirmation is manual. "
                         "Your ticket numbers are reserved but do not enter the "
                         "drawing until the organizer verifies the payment."),
+        }
+    if method_key == "cashapp":
+        return {
+            "title": "Send payment via Cash App",
+            "steps": [
+                f"Open Cash App and send {amt} to: {CASHAPP_HANDLE}",
+                f"IMPORTANT -- put this in the note/memo: {memo}",
+                "Your tickets activate once the organizer confirms receipt.",
+            ],
+            "handle": CASHAPP_HANDLE,
+            "amount": amt,
+            "memo": memo,
+            "warning": ("Cash App payment confirmation is manual. Your ticket "
+                        "numbers are reserved but do not enter the drawing "
+                        "until the organizer verifies the payment."),
         }
     return {
         "title": "Pay in person",
