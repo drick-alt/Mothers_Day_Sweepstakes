@@ -86,11 +86,34 @@ ol{padding-left:22px}ol li{margin:6px 0}
 """
 
 
-def shell(title, body, nav=""):
+def shell(title, body, nav="", meta=""):
     return (f'<!DOCTYPE html><html><head><meta charset="utf-8">'
             f'<meta name="viewport" content="width=device-width,initial-scale=1">'
-            f'<title>{escape(title)}</title><style>{CSS}</style></head>'
+            f'<title>{escape(title)}</title>{meta}<style>{CSS}</style></head>'
             f'<body><div class="wrap">{nav}{body}</div></body></html>')
+
+
+def social_meta(title, desc, image_url, page_url=""):
+    """Open Graph/Twitter tags for Telegram/iMessage/social thumbnails."""
+    t = escape(title)
+    d = escape(desc)
+    img = escape(image_url)
+    url = escape(page_url)
+    url_tag = f'<meta property="og:url" content="{url}">' if page_url else ""
+    return (
+        f'<meta property="og:type" content="website">'
+        f'<meta property="og:title" content="{t}">'
+        f'<meta property="og:description" content="{d}">'
+        f'{url_tag}'
+        f'<meta property="og:image" content="{img}">'
+        f'<meta property="og:image:secure_url" content="{img}">'
+        f'<meta property="og:image:width" content="1536">'
+        f'<meta property="og:image:height" content="1024">'
+        f'<meta name="twitter:card" content="summary_large_image">'
+        f'<meta name="twitter:title" content="{t}">'
+        f'<meta name="twitter:description" content="{d}">'
+        f'<meta name="twitter:image" content="{img}">'
+    )
 
 
 def _oc(v):
@@ -149,13 +172,23 @@ def page_buy(raffle, qty, preview, methods, mock=False):
                f'value="{m["key"]}" {checked}><span>{escape(m["label"])}'
                f'<span class="n">{escape(m["note"])}</span></span></label>')
 
+    flyer = "/static/prizes/mothers_day_sweepstakes_artwork_20261030.png"
+    public_url = f"https://mothers-day-sweepstakes.onrender.com/raffle/{raffle['id']}"
+    thumb_url = "https://mothers-day-sweepstakes.onrender.com" + flyer
+    meta = social_meta(
+        raffle["name"],
+        "Mother's Day Sweepstakes Drawing — donate to enter for 3 prizes.",
+        thumb_url,
+        public_url,
+    )
+
     return shell(raffle["name"], f"""
 <h1>{escape(raffle['name'])}</h1>
 <p class="sub">${raffle['ticket_price']:.2f} suggested donation per entry &middot; {raffle['num_prizes']} prizes
 &middot; <span class="badge {raffle['status']}">{raffle['status']}</span></p>
 {_mock_banner(mock)}
 <div class="card"><h2 style="margin-top:0">{escape(raffle['name'])}</h2>
-<img class="flyer" src="/static/prizes/sweepstakes_drawing_flyer_v5.png"
+<img class="flyer" src="{flyer}"
      alt="{escape(raffle['name'])} flyer showing the prize drawing">
 <div class="flyer-note">Prize details:</div>{prizes}</div>
 <div class="card"><h2 style="margin-top:0">If you enter with {qty} entry(ies) right now</h2>
@@ -183,7 +216,8 @@ def page_buy(raffle, qty, preview, methods, mock=False):
 <a href="/raffle/{raffle['id']}?qty=10">10</a> &middot;
 <a href="/raffle/{raffle['id']}?qty=25">25</a></p></div>
 {npn_banner(raffle["id"])}""",
-    nav='<div class="nav"><a href="/">&larr; All sweepstakes</a></div>')
+    nav='<div class="nav"><a href="/">&larr; All sweepstakes</a></div>',
+    meta=meta)
 
 
 def page_offline_pay(order, inst):
