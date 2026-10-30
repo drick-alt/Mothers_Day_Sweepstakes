@@ -230,18 +230,55 @@ def create_raffle(name, ticket_price=10.0, num_prizes=4, prizes=None):
     return rid
 
 
+def prize_names(rec):
+    """Return active, non-placeholder prize names in draw/order.
+
+    The visible prize fields are the source of truth when a real name is filled
+    in. For old rows, SQLite schema defaults may populate "Prize 3"/"Prize 4"
+    even when num_prizes was 2; those placeholder defaults should not become
+    real prizes. A non-placeholder name beyond a stale num_prizes value still
+    counts, which covers newly added prizes such as a Visa gift card.
+    """
+    try:
+        stored_n = int(rec["num_prizes"] or 0)
+    except Exception:
+        stored_n = 0
+    names = []
+    for i in range(1, 5):
+        name = str(rec[f"prize_{i}"] or "").strip()
+        if not name:
+            continue
+        if name.lower() == f"prize {i}".lower() and stored_n < i:
+            continue
+        names.append(name)
+    return names
+
+
+def active_prize_count(rec):
+    return len(prize_names(rec))
+
+
+def _normalise_raffle_dict(rec):
+    if not rec:
+        return None
+    d = dict(rec)
+    # Treat actual non-empty prize fields as ground truth for odds/analytics.
+    d["num_prizes"] = active_prize_count(d)
+    return d
+
+
 def get_raffle(rid):
     conn = connect()
     r = conn.execute("SELECT * FROM raffles WHERE id=?", (rid,)).fetchone()
     conn.close()
-    return dict(r) if r else None
+    return _normalise_raffle_dict(r)
 
 
 def list_raffles():
     conn = connect()
     rows = conn.execute("SELECT * FROM raffles ORDER BY id DESC").fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    return [_normalise_raffle_dict(r) for r in rows]
 
 
 # ------------------------------------------------------------------ counts
@@ -772,6 +809,7 @@ def get_order_by_lookup(code):
                        "WHERE order_id=? ORDER BY id", (row["id"],)).fetchall()
     conn.close()
     d = dict(row)
+    d["num_prizes"] = active_prize_count(d)
     d["tickets"] = [t["ticket_number"] for t in tix]
     d["ticket_rows"] = [dict(t) for t in tix]
     return d
@@ -1114,8 +1152,8 @@ def draw_winners(rid):
         conn.close()
         raise ValueError("no paid tickets in pool")
 
-    p = min(raffle["num_prizes"], len(pool))
-    names = [raffle["prize_1"], raffle["prize_2"], raffle["prize_3"], raffle["prize_4"]]
+    names = prize_names(raffle)
+    p = min(len(names), len(pool))
     winners, remaining = [], pool[:]
     for slot in range(p):
         w = remaining.pop(secrets.randbelow(len(remaining)))

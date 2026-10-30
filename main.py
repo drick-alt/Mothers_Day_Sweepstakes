@@ -967,27 +967,43 @@ def winners(rid: int):
 def create(name: str = Form(...), ticket_price: float = Form(10.0),
            prize_1: str = Form("Prize 1"), prize_2: str = Form("Prize 2"),
            prize_3: str = Form("Prize 3"), prize_4: str = Form("Prize 4")):
-    rid = db.create_raffle(name, ticket_price, 4,
-                           [prize_1, prize_2, prize_3, prize_4])
+    prizes = [prize_1, prize_2, prize_3, prize_4]
+    rid = db.create_raffle(name, ticket_price,
+                           sum(1 for p in prizes if p.strip()), prizes)
     return RedirectResponse(f"/admin/{rid}", status_code=303)
 
 
 # ---------------------------------------------------------------- API
 
-@app.get("/api/odds")
-def api_odds(raffle_id: int, tickets: int):
+def _odds_payload(raffle_id: int, tickets: int):
     raffle = db.get_raffle(raffle_id)
     if not raffle:
         raise HTTPException(404, "Raffle not found")
+    tickets = max(1, min(int(tickets), 1000))
     total = db.total_tickets(raffle_id)
-    o = compute_odds(total + tickets, tickets, raffle["num_prizes"])
-    return JSONResponse({
-        "if_you_buy": tickets, "pool_would_be": total + tickets,
+    num_prizes = raffle["num_prizes"]
+    o = compute_odds(total + tickets, tickets, num_prizes)
+    return {
+        "raffle_id": raffle_id,
+        "prizes": db.prize_names(raffle),
+        "num_prizes": num_prizes,
+        "if_you_buy": tickets,
+        "pool_would_be": total + tickets,
         "chance_at_least_one_prize": round(o["at_least_one"], 6),
         "chance_pretty": pct(o["at_least_one"]),
         "expected_prizes": round(o["expected_prizes"], 4),
         "per_prize": round(o["per_prize"], 6),
-    })
+    }
+
+
+@app.get("/api/odds")
+def api_odds(raffle_id: int, tickets: int):
+    return JSONResponse(_odds_payload(raffle_id, tickets))
+
+
+@app.get("/api/odds/{raffle_id}")
+def api_odds_path(raffle_id: int, tickets: int = 1):
+    return JSONResponse(_odds_payload(raffle_id, tickets))
 
 
 @app.get("/api/raffle/{rid}/stats")
@@ -1002,6 +1018,7 @@ def api_stats(rid: int):
         "revenue": db.revenue(rid),
         "revenue_pending": db.pending_revenue(rid),
         "num_prizes": raffle["num_prizes"],
+        "prizes": db.prize_names(raffle),
         "buyers": len(db.leaderboard(rid)),
         "tickets_comp": db.comp_stats(rid)["comp"],
         "tickets_purchased": db.comp_stats(rid)["paid"],
