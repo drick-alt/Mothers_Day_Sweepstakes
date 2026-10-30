@@ -46,7 +46,7 @@ MOTHERS_DAY_RAFFLE = {
     "prize_4_url": "",
     "prize_1_img": "/static/prizes/adventure_outdoors_logo.jpg",
     "prize_2_img": "/static/prizes/mcm_handbag.jpg",
-    "prize_3_img": "/static/prizes/visa_giftcard_500.svg",
+    "prize_3_img": "/static/prizes/visa_giftcard_500.jpg",
     "prize_4_img": "",
     "mail_name": "Mother's Day Sweepstakes Drawing",
     "mail_attn": "Free Entry",

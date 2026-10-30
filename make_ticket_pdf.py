@@ -67,7 +67,7 @@ STUB_W = DES_W * 0.295
 # checkout and any working directory.
 ASSETS = Path(__file__).resolve().parent / "static" / "prizes"
 
-ART = str(ASSETS / "ticket_art_clean_v1.jpg")
+ART = str(ASSETS / "ticket_art_clean_v3_mothers_day_only.jpg")
 
 # Prize thumbnails shown on the holder half.
 PRIZE_IMGS = [
@@ -76,9 +76,8 @@ PRIZE_IMGS = [
 ]
 
 TITLE_ORG = "TRAINED TO GO M.C."
-# Hyphen, not slash: matches how JB writes it and the live campaign record
-# ("Mother's Day- Father's Day Sweepstakes Drawing"), spacing normalised.
-TITLE_EVENT = "Mother's Day - Father's Day Sweepstakes Drawing"
+# Mother's Day-only title for this ticket artwork.
+TITLE_EVENT = "Mother's Day Sweepstakes Drawing"
 
 # Front of ticket. The NO PURCHASE NECESSARY / free-entry disclosure and
 # the rules URL moved to the BACK (see draw_back_design / --backs), so the
@@ -102,7 +101,7 @@ BACK_AMOE = (
     "hand-addressed envelope with proper postage to:"
 )
 BACK_ADDR = [
-    "Mother's Day- Father's Day Sweepstakes Drawing, ATTN: Free Entry",
+    "Mother's Day Sweepstakes Drawing, ATTN: Free Entry",
     "5456 Peachtree Blvd, Suite 134, Atlanta, GA 30341",
 ]
 BACK_TAIL = (
@@ -166,9 +165,10 @@ def draw_art(c, x, y, w, h, img):
     p = c.beginPath()
     p.rect(x, y, w, h)
     c.clipPath(p, stroke=0, fill=0)
-    # Bias the crop so the faces land in the upper band of the strip and
-    # the dark top of the frame -- not a face -- falls under the scrim.
-    c.drawImage(img, x - (dw - w) / 2, y - (dh - h) * 0.46, dw, dh,
+    # Bias the crop downward so the uploaded artwork's top/title area remains visible
+    # inside the very wide, short ticket canvas. Higher factor = image drawn lower,
+    # showing more of the original top and cropping more from the bottom.
+    c.drawImage(img, x - (dw - w) / 2, y - (dh - h) * 0.90, dw, dh,
                 preserveAspectRatio=False, mask="auto")
     c.restoreState()
 
@@ -206,39 +206,8 @@ def draw_design(c, number, code, img, prize_imgs):
     # ---- artwork across the holder body ----
     draw_art(c, 0, 0, body_w, DES_H, img)
 
-    # ---- title bar across the top ----
-    # Scrim first so the title reads over the photo regardless of crop.
-    # 0.33in (was 0.30in) to carry the larger event line without its
-    # descenders riding the bar edge.
-    title_h = 0.33 * inch
-    c.saveState()
-    c.setFillColor(black)
-    c.setFillAlpha(0.74)
-    c.rect(0, DES_H - title_h, body_w, title_h, stroke=0, fill=1)
-    c.restoreState()
-
-    c.setStrokeColor(GOLD)
-    c.setLineWidth(0.7)
-    c.line(0, DES_H - title_h, body_w, DES_H - title_h)
-
-    # Event name is the dominant line; the org sits above it as a smaller
-    # burgundy presenter credit on a cream plate.
-    org_size = fit(c, TITLE_ORG, "Helvetica-Bold", 6.0, body_w - 2 * PAD)
-    org_w = c.stringWidth(TITLE_ORG, "Helvetica-Bold", org_size)
-    plate_pad_x, plate_pad_y = 0.05 * inch, 0.022 * inch
-    plate_y = DES_H - 0.118 * inch - plate_pad_y
-    c.setFillColor(CREAM)
-    c.roundRect(body_w / 2 - org_w / 2 - plate_pad_x, plate_y,
-                org_w + 2 * plate_pad_x,
-                org_size / 72.0 * inch + 2 * plate_pad_y - 0.012 * inch,
-                0.028 * inch, stroke=0, fill=1)
-    c.setFillColor(WINE)
-    c.setFont("Helvetica-Bold", org_size)
-    c.drawCentredString(body_w / 2, DES_H - 0.118 * inch, TITLE_ORG)
-
-    c.setFillColor(white)
-    draw_fitted(c, TITLE_EVENT, body_w / 2, DES_H - 0.272 * inch,
-                "Helvetica-Bold", 9.5, body_w - 2 * PAD, centred=True)
+    # The uploaded v2 artwork already contains the event/sponsor header.
+    # Do not draw a second title bar over it; leave the top of the artwork clean.
 
     # ---- legibility scrim along the bottom ----
     # Deepened from 0.40in to 0.52in so the prize thumbnails can live
