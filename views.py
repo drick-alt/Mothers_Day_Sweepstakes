@@ -432,8 +432,10 @@ def method_badges(methods):
 
 
 def page_admin(raffle, total, pend_t, rev, pend_rev, board, pending, breakdown,
-               winners, comp=None, printed=None):
+               winners, comp=None, printed=None, hits=None):
     printed = printed or {"available": 0, "active": 0, "total": 0}
+    hits = hits or {"total": 0, "human_hits": 0, "unique_ips": 0,
+                    "bot_hits": 0, "last_hit": None, "recent": []}
     rows = "".join(f"<tr><td>{escape(b['buyer_name'])}</td>"
                    f"<td>{method_badges(b.get('methods'))}</td>"
                    f"<td>{b['tickets']}</td>"
@@ -557,6 +559,25 @@ discretionary gifts, tracked separately from mail-in AMOE entries.</p>
 <label>Note (e.g. which event)</label><input name="note" placeholder="Fall Festival booth">
 <button type="submit">Issue Free Tickets</button></form></div>"""
 
+    hit_recent = "".join(
+        f"<tr><td>{escape(str(h.get('created_at') or '-'))}</td>"
+        f"<td>{'bot/preview' if h.get('is_bot') else 'visitor'}</td>"
+        f"<td style='max-width:420px;overflow-wrap:anywhere'>"
+        f"{escape((h.get('user_agent') or '-')[:180])}</td></tr>"
+        for h in hits.get("recent", [])) or \
+        '<tr><td colspan="3" style="color:#8b93a5">No purchase-page hits yet.</td></tr>'
+    hit_html = f"""<div class="card"><h2 style="margin-top:0">Ticket purchase link traffic</h2>
+<p class="sub">Counts visits to <code>/raffle/{raffle['id']}</code>. Bot/preview hits include
+Telegram, Facebook, and other link-preview crawlers; unique visitors are approximate because IPs are stored only as salted hashes.</p>
+<div class="grid">
+<div class="stat"><div class="label">Total hits</div><div class="value">{hits['total']}</div></div>
+<div class="stat"><div class="label">Visitor hits</div><div class="value" style="color:#4ade80">{hits['human_hits']}</div></div>
+<div class="stat"><div class="label">Approx. unique visitors</div><div class="value">{hits['unique_ips']}</div></div>
+<div class="stat"><div class="label">Bot / preview hits</div><div class="value" style="color:#fbbf24">{hits['bot_hits']}</div></div>
+</div>
+<p style="font-size:12px;color:#94a3b8;margin-top:10px">Last hit: {escape(str(hits.get('last_hit') or '-'))}</p>
+<table><tr><th>Time</th><th>Type</th><th>User agent</th></tr>{hit_recent}</table></div>"""
+
     draw_btn = ""
     if raffle["status"] == "open" and total > 0:
         draw_btn = (f"<form method='post' action='/admin/{raffle['id']}/draw' "
@@ -583,6 +604,7 @@ discretionary gifts, tracked separately from mail-in AMOE entries.</p>
 {comp_tile}
 </div></div>
 {details_html}
+{hit_html}
 {prize_html}
 {give_html}
 {pend_html}

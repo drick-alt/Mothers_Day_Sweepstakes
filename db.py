@@ -7,6 +7,7 @@ Pending (unpaid) tickets are reserved but excluded, so an unpaid order can
 never dilute a paying buyer's odds.
 """
 
+import hashlib
 import os
 import sqlite3
 import secrets
@@ -66,6 +67,16 @@ CREATE TABLE IF NOT EXISTS payment_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     order_id INTEGER NOT NULL REFERENCES orders(id),
     event TEXT NOT NULL, detail TEXT, created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS raffle_page_hits (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    raffle_id INTEGER NOT NULL REFERENCES raffles(id),
+    path TEXT NOT NULL DEFAULT '',
+    ip_hash TEXT DEFAULT '',
+    user_agent TEXT DEFAULT '',
+    referer TEXT DEFAULT '',
+    is_bot INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(raffle_id, status);
 CREATE INDEX IF NOT EXISTS idx_tickets_buyer  ON tickets(raffle_id, buyer_id);
@@ -189,6 +200,20 @@ def _ensure_current_schema(conn):
                       AND COALESCE(entry_source, 'purchase')='purchase'""")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_amoe_email ON amoe_requests(raffle_id, email)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_amoe_ip ON amoe_requests(raffle_id, ip_hash, created_at)")
+    conn.execute("""CREATE TABLE IF NOT EXISTS raffle_page_hits (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        raffle_id INTEGER NOT NULL REFERENCES raffles(id),
+        path TEXT NOT NULL DEFAULT '',
+        ip_hash TEXT DEFAULT '',
+        user_agent TEXT DEFAULT '',
+        referer TEXT DEFAULT '',
+        is_bot INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL
+    )""")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_page_hits_raffle_time "
+                 "ON raffle_page_hits(raffle_id, created_at)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_page_hits_raffle_ip "
+                 "ON raffle_page_hits(raffle_id, ip_hash)")
     conn.commit()
 
 
@@ -281,8 +306,70 @@ def list_raffles():
     return [_normalise_raffle_dict(r) for r in rows]
 
 
-# ------------------------------------------------------------------ counts
-# ALL of these count ONLY status='active'.
+# ------------------------------------------------------------------ counts / analytics
+# ALL ticket-count helpers count ONLY status='active'.
+
+BOT_UA_NEEDLES = (
+    "bot", "crawler", "spider", "preview", "telegram", "facebookexternalhit",
+    "twitterbot", "slackbot", "discordbot", "whatsapp", "linkedinbot",
+    "embedly", "quora link preview", "pinterest", "vkshare",
+)
+
+
+def _hash_ip(ip):
+    ip = (ip or "").strip()
+    if not ip:
+        return ""
+    salt = os.environ.get("SWEEPS_IP_SALT", "change-me-in-production")
+    return hashlib.sha256(f"{salt}:hit:{ip}".encode()).hexdigest()[:32]
+
+
+def _is_bot_ua(user_agent):
+    ua = (user_agent or "").lower()
+    return int(any(n in ua for n in BOT_UA_NEEDLES))
+
+
+def record_raffle_page_hit(rid, path="", ip="", user_agent="", referer=""):
+    """Record a public purchase-page view for admin-only analytics.
+
+    Store a salted IP hash, never the raw address. Social/link-preview crawlers
+    are still counted as total hits, but flagged so the admin can separate real
+    visitors from thumbnail-generation requests.
+    """
+    conn = connect()
+    conn.execute(
+        """INSERT INTO raffle_page_hits
+           (raffle_id,path,ip_hash,user_agent,referer,is_bot,created_at)
+           VALUES (?,?,?,?,?,?,?)""",
+        (rid, (path or "")[:200], _hash_ip(ip), (user_agent or "")[:500],
+         (referer or "")[:500], _is_bot_ua(user_agent), now()))
+    conn.commit()
+    conn.close()
+
+
+def raffle_page_hit_stats(rid):
+    conn = connect()
+    row = conn.execute(
+        """SELECT COUNT(*) total,
+                  COUNT(DISTINCT CASE WHEN ip_hash<>'' THEN ip_hash END) unique_ips,
+                  SUM(CASE WHEN is_bot=1 THEN 1 ELSE 0 END) bot_hits,
+                  MAX(created_at) last_hit
+           FROM raffle_page_hits WHERE raffle_id=?""", (rid,)).fetchone()
+    recent = conn.execute(
+        """SELECT created_at,user_agent,referer,is_bot FROM raffle_page_hits
+           WHERE raffle_id=? ORDER BY id DESC LIMIT 5""", (rid,)).fetchall()
+    conn.close()
+    total = int(row["total"] or 0) if row else 0
+    bots = int(row["bot_hits"] or 0) if row else 0
+    return {
+        "total": total,
+        "unique_ips": int(row["unique_ips"] or 0) if row else 0,
+        "bot_hits": bots,
+        "human_hits": max(0, total - bots),
+        "last_hit": row["last_hit"] if row else None,
+        "recent": [dict(r) for r in recent],
+    }
+
 
 def total_tickets(rid):
     conn = connect()

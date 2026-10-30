@@ -259,7 +259,7 @@ def current_rules():
 
 
 @app.get("/raffle/{rid}", response_class=HTMLResponse)
-def buy_page(rid: int, qty: int = 1):
+def buy_page(request: Request, rid: int, qty: int = 1):
     raffle = db.get_raffle(rid)
     if not raffle:
         return _redirect_to_default("raffle")
@@ -267,6 +267,13 @@ def buy_page(rid: int, qty: int = 1):
     # Pool size and revenue are intentionally NOT passed to the buy page --
     # buyers should not see how many tickets are sold or how much was raised.
     # The odds preview still needs the real pool internally.
+    db.record_raffle_page_hit(
+        rid,
+        path=str(request.url.path),
+        ip=_client_ip(request),
+        user_agent=request.headers.get("user-agent", ""),
+        referer=request.headers.get("referer", ""),
+    )
     total = db.total_tickets(rid)
     preview = compute_odds(total + qty, qty, raffle["num_prizes"])
     return views.page_buy(raffle, qty, preview,
@@ -584,7 +591,7 @@ def admin(rid: int):
                             db.revenue(rid), db.pending_revenue(rid), board,
                             db.pending_orders(rid), db.payment_breakdown(rid),
                             db.get_winners(rid), db.comp_stats(rid),
-                            db.printed_counts(rid))
+                            db.printed_counts(rid), db.raffle_page_hit_stats(rid))
 
 
 @app.post("/admin/confirm/{code}")
