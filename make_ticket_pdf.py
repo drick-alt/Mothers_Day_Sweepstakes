@@ -67,7 +67,7 @@ STUB_W = DES_W * 0.295
 # checkout and any working directory.
 ASSETS = Path(__file__).resolve().parent / "static" / "prizes"
 
-ART = str(ASSETS / "ticket_art_clean_v3_mothers_day_only.jpg")
+ART = str(ASSETS / "mothers_day_sweepstakes_artwork_20261030.png")
 
 # Prize thumbnails shown on the holder half.
 PRIZE_IMGS = [
