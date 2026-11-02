@@ -69,10 +69,15 @@ ASSETS = Path(__file__).resolve().parent / "static" / "prizes"
 
 ART = str(ASSETS / "mothers_day_sweepstakes_artwork_20261030.png")
 
-# Prize thumbnails shown on the holder half.
+# Current prize thumbnails shown on the holder half.
+# Filenames are legacy app paths, but the images now contain:
+#   1) Louis Vuitton / handbag prize
+#   2) 85" 4K UHD AI Smart TV
+#   3) $500 Visa gift card
 PRIZE_IMGS = [
-    str(ASSETS / "thumb_ao.jpg"),
-    str(ASSETS / "thumb_mcm.jpg"),
+    str(ASSETS / "adventure_outdoors_logo.jpg"),
+    str(ASSETS / "mcm_handbag.jpg"),
+    str(ASSETS / "visa_giftcard_500.jpg"),
 ]
 
 TITLE_ORG = "TRAINED TO GO M.C."
