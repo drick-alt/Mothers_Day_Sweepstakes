@@ -113,6 +113,28 @@ chk("available restored", db.printed_counts(RID)["available"], 1094)
 
 print()
 print("=" * 66)
+print("5b. Reduce available printed stock safely")
+print("=" * 66)
+live_before_reduce = db.total_tickets(RID)
+removed = db.reduce_printed_available_to(RID, 800)
+chk("removed highest available stock count", len(removed), 294)
+chk("available reduced to 800", db.printed_counts(RID)["available"], 800)
+chk("live pool unchanged by reduction", db.total_tickets(RID), live_before_reduce)
+# Reducing stock deletes rows, so future numbering must use MAX(ticket_number),
+# not COUNT(*), or it would collide with still-available printed stock.
+o3 = db.create_order(RID, "Post-Reduction Buyer", "post@e.com", "7705550003", 1, "zelle")
+chk("online order after reduction continues after max number",
+    o3["ticket_numbers"], ["001106"])
+conn = db.connect()
+dupes2 = conn.execute(
+    "SELECT COUNT(*) c FROM (SELECT ticket_number FROM tickets "
+    "WHERE raffle_id=? GROUP BY ticket_number HAVING COUNT(*)>1)",
+    (RID,)).fetchone()["c"]
+conn.close()
+chk("zero duplicate numbers after reduction", dupes2, 0)
+
+print()
+print("=" * 66)
 print("6. Draw only ever sees the live pool")
 print("=" * 66)
 live = db.total_tickets(RID)

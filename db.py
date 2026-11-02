@@ -454,9 +454,9 @@ def create_order(rid, name, email, phone, quantity, payment_method,
             (rid, bid, receipt_id, lookup, quantity, amount,
              payment_method, memo_code, now())).lastrowid
 
-        # Reserve sequential numbers across ALL tickets so numbers never collide
-        start = conn.execute("SELECT COUNT(*) c FROM tickets WHERE raffle_id=?",
-                             (rid,)).fetchone()["c"]
+        # Reserve sequential numbers across ALL tickets so numbers never collide.
+        # Use MAX, not COUNT, because reducing unsold printed stock deletes rows.
+        start = _next_ticket_number(conn, rid)
         nums = []
         for i in range(quantity):
             tn = f"{start + i + 1:06d}"
@@ -597,8 +597,7 @@ def issue_comp_tickets(rid, name, email, phone, quantity, note=None):
             (rid, bid, receipt_id, lookup, quantity, memo, now(),
              now())).lastrowid
 
-        start = conn.execute("SELECT COUNT(*) c FROM tickets WHERE raffle_id=?",
-                             (rid,)).fetchone()["c"]
+        start = _next_ticket_number(conn, rid)
         nums = []
         for i in range(quantity):
             tn = f"{start + i + 1:06d}"
@@ -691,8 +690,7 @@ def amoe_entry(rid, name, email, phone="", address="", ip_hash="",
 
         # Identical allocation to a purchase -- same sequence, same table,
         # same 'active' status. This is what makes the odds equal.
-        start = conn.execute("SELECT COUNT(*) c FROM tickets WHERE raffle_id=?",
-                             (rid,)).fetchone()["c"]
+        start = _next_ticket_number(conn, rid)
         nums = []
         for i in range(quantity):
             tn = f"{start + i + 1:06d}"
@@ -1105,6 +1103,56 @@ def seed_printed_tickets(rid, count, with_check_codes=True):
         raise
     conn.close()
     return made
+
+
+def reduce_printed_available_to(rid, target_available):
+    """Delete highest-numbered unsold printed stock until `available` == target.
+
+    Only rows with source='printed' and status='available' are eligible. Live,
+    pending, void, online, AMOE, comp, and already-activated printed tickets are
+    untouched. Ticket issuance uses MAX(ticket_number), so deleted high stock
+    numbers are not reused by later online orders.
+    """
+    target_available = int(target_available)
+    if target_available < 0:
+        raise ValueError("target available count must be >= 0")
+    conn = connect()
+    try:
+        raffle = conn.execute("SELECT * FROM raffles WHERE id=?", (rid,)).fetchone()
+        if not raffle:
+            raise ValueError("raffle not found")
+        if conn.execute("SELECT COUNT(*) c FROM draws WHERE raffle_id=?",
+                        (rid,)).fetchone()["c"]:
+            raise ValueError("cannot reduce stock after the drawing has been run")
+        cur_available = conn.execute(
+            """SELECT COUNT(*) c FROM tickets
+               WHERE raffle_id=? AND source='printed' AND status='available'""",
+            (rid,)).fetchone()["c"]
+        if target_available >= cur_available:
+            conn.close()
+            return []
+        remove_count = cur_available - target_available
+        rows = conn.execute(
+            """SELECT id,ticket_number FROM tickets
+               WHERE raffle_id=? AND source='printed' AND status='available'
+               ORDER BY CAST(ticket_number AS INTEGER) DESC LIMIT ?""",
+            (rid, remove_count)).fetchall()
+        ids = [r["id"] for r in rows]
+        nums = [r["ticket_number"] for r in rows]
+        q = ",".join("?" * len(ids))
+        conn.execute(f"DELETE FROM tickets WHERE id IN ({q})", ids)
+        _, oid = _stock_holder(conn, rid, PRINTED_STOCK_BUYER,
+                               "printed_stock", "stock")
+        log_event(conn, oid, "printed_stock_reduced",
+                  f"removed={remove_count} target_available={target_available} "
+                  f"range={min(nums)}-{max(nums)}")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        conn.close()
+        raise
+    conn.close()
+    return sorted(nums)
 
 
 def printed_stock(rid, status="available", limit=5000):

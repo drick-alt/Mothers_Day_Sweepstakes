@@ -551,6 +551,23 @@ async def admin_return_printed(rid: int, request: Request):
         f"/admin/{rid}/printed?show=active&returned={n}", status_code=303)
 
 
+@app.post("/admin/{rid}/printed/reduce")
+def admin_reduce_printed(rid: int, target_available: int = Form(...)):
+    """Reduce unsold printed stock to a target count.
+
+    Deletes only source='printed' + status='available' rows. Used when fewer
+    physical stubs will be printed than originally seeded.
+    """
+    try:
+        removed = db.reduce_printed_available_to(rid, target_available)
+    except ValueError as e:
+        return RedirectResponse(
+            f"/admin/{rid}/printed?err={quote(str(e))}", status_code=303)
+    return RedirectResponse(
+        f"/admin/{rid}/printed?returned=reduced+available+stock+by+{len(removed)}+to+{target_available}",
+        status_code=303)
+
+
 @app.get("/admin/{rid}/printed.csv", response_class=PlainTextResponse)
 def admin_printed_csv(rid: int, show: str = "available"):
     """Export stock for the print shop (numbers + check codes)."""
