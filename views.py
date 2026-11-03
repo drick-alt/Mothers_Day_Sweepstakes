@@ -206,6 +206,8 @@ def page_buy(raffle, qty, preview, methods, mock=False):
 <input name="phone" type="tel" placeholder="So we can reach you if you win" required>
 <label>Street address</label>
 <input name="address" placeholder="Optional">
+<label>Organization member who sold this ticket</label>
+<input name="seller_member" placeholder="Member name, if someone helped you">
 <label>How many entries?</label>
 <input name="quantity" type="number" min="1" max="1000" value="{qty}" required>
 <label style="margin-top:18px">Donation method</label><div class="pm">{pm}</div>
@@ -432,10 +434,11 @@ def method_badges(methods):
 
 
 def page_admin(raffle, total, pend_t, rev, pend_rev, board, pending, breakdown,
-               winners, comp=None, printed=None, hits=None):
+               winners, comp=None, printed=None, hits=None, seller_board=None):
     printed = printed or {"available": 0, "active": 0, "total": 0}
     hits = hits or {"total": 0, "human_hits": 0, "unique_ips": 0,
                     "bot_hits": 0, "last_hit": None, "recent": []}
+    seller_board = seller_board or []
     rows = "".join(f"<tr><td>{escape(b['buyer_name'])}</td>"
                    f"<td>{method_badges(b.get('methods'))}</td>"
                    f"<td>{b['tickets']}</td>"
@@ -448,6 +451,7 @@ def page_admin(raffle, total, pend_t, rev, pend_rev, board, pending, breakdown,
         pr = ""
         for o in pending:
             pr += (f"<tr><td>{escape(o['buyer_name'])}</td>"
+                   f"<td>{escape(o.get('seller_member') or 'Online / not specified')}</td>"
                    f"<td>{escape(o['payment_method'])}</td>"
                    f"<td>{o['quantity']}</td><td>${o['amount_paid']:,.2f}</td>"
                    f"<td><code>{escape(o['memo_code'] or '-')}</code></td>"
@@ -460,13 +464,30 @@ def page_admin(raffle, total, pend_t, rev, pend_rev, board, pending, breakdown,
 Pending approvals ({len(pending)})</h2>
 <p class="sub">Zelle/cash orders awaiting your confirmation. Match the memo code
 in your banking app, then Approve.</p>
-<table><tr><th>Entrant</th><th>Method</th><th>Qty</th><th>Amount</th>
+<table><tr><th>Entrant</th><th>Sold by</th><th>Method</th><th>Qty</th><th>Amount</th>
 <th>Memo</th><th>Action</th></tr>{pr}</table></div>"""
 
     bd = "".join(f"<tr><td>{escape(b['payment_method'])}</td>"
                  f"<td><span class='badge {b['payment_status']}'>{b['payment_status']}</span></td>"
                  f"<td>{b['orders']}</td><td>{b['tickets']}</td>"
                  f"<td>${b['amount']:,.2f}</td></tr>" for b in breakdown)
+
+    seller_rows = ""
+    for s in seller_board:
+        paid_t = int(s.get('paid_tickets') or 0)
+        pend_t_s = int(s.get('pending_tickets') or 0)
+        total_t = int(s.get('total_open_tickets') or 0)
+        paid_amt = float(s.get('paid_amount') or 0)
+        pend_amt_s = float(s.get('pending_amount') or 0)
+        seller_rows += (
+            f"<tr><td>{escape(s.get('seller_member') or 'Online / not specified')}</td>"
+            f"<td>{paid_t}</td><td>{pend_t_s}</td><td>{total_t}</td>"
+            f"<td>${paid_amt:,.2f}</td><td>${pend_amt_s:,.2f}</td>"
+            f"<td>{int(s.get('orders') or 0)}</td></tr>")
+    seller_rows = seller_rows or '<tr><td colspan="7" style="color:#8b93a5">No seller/member data yet.</td></tr>'
+    seller_html = f"""<div class="card"><h2 style="margin-top:0">Member sales leaderboard</h2>
+<p class="sub">Tracks the organization member entered on the ticket purchase form. Paid tickets are confirmed; pending tickets are reserved but not in the drawing pool until approved.</p>
+<table><tr><th>Member</th><th>Paid tickets</th><th>Pending</th><th>Total</th><th>Paid revenue</th><th>Pending $</th><th>Orders</th></tr>{seller_rows}</table></div>"""
 
     comp = comp or {"comp": 0, "paid": 0}
     comp_tile = (f'<div class="stat"><div class="label">Giveaway</div>'
@@ -604,6 +625,7 @@ Telegram, Facebook, and other link-preview crawlers; unique visitors are approxi
 {comp_tile}
 </div></div>
 {details_html}
+{seller_html}
 {hit_html}
 {prize_html}
 {give_html}

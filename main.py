@@ -283,7 +283,7 @@ def buy_page(request: Request, rid: int, qty: int = 1):
 @app.post("/buy")
 def buy(raffle_id: int = Form(...), name: str = Form(""),
         email: str = Form(""), phone: str = Form(""),
-        address: str = Form(""),
+        address: str = Form(""), seller_member: str = Form(""),
         quantity: int = Form(1), payment_method: str = Form("card")):
     if not name.strip():
         raise HTTPException(400, "Name is required")
@@ -335,7 +335,8 @@ def buy(raffle_id: int = Form(...), name: str = Form(""),
     try:
         order = db.create_order(raffle_id, name.strip(),
                                 email.strip() or None, phone.strip() or None,
-                                quantity, payment_method, memo)
+                                quantity, payment_method, memo,
+                                seller_member.strip()[:80])
     except ValueError as e:
         raise HTTPException(400, str(e))
 
@@ -608,7 +609,8 @@ def admin(rid: int):
                             db.revenue(rid), db.pending_revenue(rid), board,
                             db.pending_orders(rid), db.payment_breakdown(rid),
                             db.get_winners(rid), db.comp_stats(rid),
-                            db.printed_counts(rid), db.raffle_page_hit_stats(rid))
+                            db.printed_counts(rid), db.raffle_page_hit_stats(rid),
+                            db.seller_member_leaderboard(rid))
 
 
 @app.post("/admin/confirm/{code}")

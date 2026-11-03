@@ -154,6 +154,7 @@ def _ensure_current_schema(conn):
         ("memo_code", "TEXT"),
         ("paid_at", "TEXT"),
         ("entry_source", "TEXT DEFAULT 'purchase'"),
+        ("seller_member", "TEXT DEFAULT ''"),
     ]:
         _add_col(conn, "orders", name, decl)
 
@@ -415,7 +416,7 @@ def pending_revenue(rid):
 # ------------------------------------------------------------------ purchase
 
 def create_order(rid, name, email, phone, quantity, payment_method,
-                 memo_code=None):
+                 memo_code=None, seller_member=""):
     """Create buyer + order + tickets.
 
     Tickets start 'pending' for offline methods and for gateway methods that
@@ -449,10 +450,11 @@ def create_order(rid, name, email, phone, quantity, payment_method,
 
         oid = conn.execute(
             """INSERT INTO orders (raffle_id,buyer_id,receipt_id,lookup_code,
-               quantity,amount_paid,payment_status,payment_method,memo_code,created_at)
-               VALUES (?,?,?,?,?,?,'pending',?,?,?)""",
+               quantity,amount_paid,payment_status,payment_method,memo_code,
+               seller_member,created_at)
+               VALUES (?,?,?,?,?,?,'pending',?,?,?,?)""",
             (rid, bid, receipt_id, lookup, quantity, amount,
-             payment_method, memo_code, now())).lastrowid
+             payment_method, memo_code, (seller_member or '').strip(), now())).lastrowid
 
         # Reserve sequential numbers across ALL tickets so numbers never collide.
         # Use MAX, not COUNT, because reducing unsold printed stock deletes rows.
@@ -478,6 +480,7 @@ def create_order(rid, name, email, phone, quantity, payment_method,
             "receipt_id": receipt_id, "lookup_code": lookup,
             "quantity": quantity, "amount_paid": amount,
             "memo_code": memo_code, "payment_method": payment_method,
+            "seller_member": (seller_member or '').strip(),
             "ticket_numbers": nums}
 
 
@@ -977,6 +980,35 @@ def payment_breakdown(rid):
            FROM orders WHERE raffle_id=?
            GROUP BY payment_method,payment_status
            ORDER BY payment_method""", (rid,)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def seller_member_leaderboard(rid):
+    """Ticket-sale totals by the organization member entered on /buy.
+
+    Shows paid and pending separately so the admin can see both confirmed sales
+    and money/tickets still awaiting manual payment confirmation.
+    """
+    conn = connect()
+    rows = conn.execute(
+        """SELECT
+             CASE
+               WHEN TRIM(COALESCE(seller_member,'')) = '' THEN 'Online / not specified'
+               ELSE TRIM(seller_member)
+             END seller_member,
+             COUNT(*) orders,
+             SUM(CASE WHEN payment_status='paid' THEN quantity ELSE 0 END) paid_tickets,
+             SUM(CASE WHEN payment_status='pending' THEN quantity ELSE 0 END) pending_tickets,
+             SUM(CASE WHEN payment_status='paid' THEN amount_paid ELSE 0 END) paid_amount,
+             SUM(CASE WHEN payment_status='pending' THEN amount_paid ELSE 0 END) pending_amount,
+             SUM(CASE WHEN payment_status IN ('paid','pending') THEN quantity ELSE 0 END) total_open_tickets
+           FROM orders
+           WHERE raffle_id=? AND payment_status IN ('paid','pending')
+             AND COALESCE(entry_source,'purchase')='purchase'
+           GROUP BY seller_member
+           ORDER BY paid_tickets DESC, pending_tickets DESC, paid_amount DESC, seller_member""",
+        (rid,)).fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
