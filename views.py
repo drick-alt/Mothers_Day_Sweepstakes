@@ -134,10 +134,9 @@ def page_home(raffles, mock=False):
     for r in raffles:
         rows += (f'<div class="card"><h2 style="margin-top:0">{escape(r["name"])} '
                  f'<span class="badge {r["status"]}">{r["status"]}</span></h2>'
-                 f'<p class="sub">${r["ticket_price"]:.2f} per ticket &middot; '
+                 f'<p class="sub">${r["ticket_price"]:.2f} suggested donation per entry &middot; '
                  f'{r["num_prizes"]} prizes</p>'
-                 f'<a href="/raffle/{r["id"]}">Donate &amp; enter &rarr;</a> &nbsp;|&nbsp; '
-                 f'<a href="/admin/{r["id"]}">Admin</a></div>')
+                 f'<a href="/raffle/{r["id"]}">Donate &amp; enter &rarr;</a></div>')
     if not raffles:
         rows = '<div class="card"><p>No sweepstakes yet.</p></div>'
     return shell("Sweepstakes", f"""<h1>Sweepstakes</h1>
@@ -148,15 +147,7 @@ def page_home(raffles, mock=False):
 <input name="code" placeholder="ABCD2345" style="text-transform:uppercase">
 <button type="submit">Find my tickets</button></form></div>
 {rows}
-<div class="card"><h2 style="margin-top:0">Create a sweepstakes</h2>
-<form method="post" action="/admin/create">
-<label>Sweepstakes name</label><input name="name" required>
-<label>Ticket price ($)</label><input name="ticket_price" type="number" step="0.01" value="10.00">
-<label>Prize 1</label><input name="prize_1" value="Grand Prize">
-<label>Prize 2</label><input name="prize_2" value="Second Prize">
-<label>Prize 3</label><input name="prize_3" value="Third Prize">
-<label>Prize 4</label><input name="prize_4" value="Fourth Prize">
-<button type="submit">Create Sweepstakes</button></form></div>""")
+<p class="sub" style="font-size:12px;margin-top:18px">Campaign management is restricted to administrators.</p>""")
 
 
 def page_buy(raffle, qty, preview, methods, mock=False):
@@ -514,6 +505,17 @@ in your banking app, then Approve.</p>
             f'placeholder="Image URL or /static/prizes/filename.jpg (optional)" '
             f'style="margin-top:4px;margin-bottom:14px">')
 
+    create_html = f"""<div class="card"><h2 style="margin-top:0">Create another raffle</h2>
+<p class="sub">Admin-only campaign creation. Participants cannot see this form.</p>
+<form method="post" action="/admin/create">
+<label>Sweepstakes name</label><input name="name" required>
+<label>Ticket price ($)</label><input name="ticket_price" type="number" step="0.01" value="10.00">
+<label>Prize 1</label><input name="prize_1" value="Grand Prize">
+<label>Prize 2</label><input name="prize_2" value="Second Prize">
+<label>Prize 3</label><input name="prize_3" value="Third Prize">
+<label>Prize 4</label><input name="prize_4" value="Fourth Prize">
+<button type="submit">Create Raffle</button></form></div>"""
+
     details_html = f"""<div class="card">
 <h2 style="margin-top:0"><a href="/admin/{raffle['id']}/printed"
    style="color:#60a5fa">Printed Tickets &rarr;</a></h2>
@@ -624,6 +626,7 @@ Telegram, Facebook, and other link-preview crawlers; unique visitors are approxi
 <div class="stat"><div class="label">Entrants</div><div class="value">{len(board)}</div></div>
 {comp_tile}
 </div></div>
+{create_html}
 {details_html}
 {seller_html}
 {hit_html}
