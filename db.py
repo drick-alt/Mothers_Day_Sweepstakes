@@ -415,6 +415,37 @@ def pending_revenue(rid):
 
 # ------------------------------------------------------------------ purchase
 
+
+def _find_or_create_buyer(conn, name, email, phone):
+    """Return a buyer id for this entrant.
+
+    Do not match on email alone. Families/teams often reuse one email address
+    while entering different people; if we attach the new order to the first
+    buyer with that email, receipts/admin screens show the old entrant name
+    (for example AJ Holt) even when the form submitted a different name.
+    """
+    name = (name or "").strip()
+    email = (email or "").strip()
+    phone = (phone or "").strip()
+
+    buyer = None
+    if email:
+        buyer = conn.execute(
+            """SELECT * FROM buyers
+               WHERE LOWER(email)=LOWER(?) AND LOWER(name)=LOWER(?)
+               ORDER BY id DESC LIMIT 1""",
+            (email, name)).fetchone()
+    if buyer:
+        bid = buyer["id"]
+        # Keep contact data fresh for repeat orders by the same named entrant.
+        if phone and phone != (buyer["phone"] or ""):
+            conn.execute("UPDATE buyers SET phone=? WHERE id=?", (phone, bid))
+        return bid
+
+    return conn.execute(
+        "INSERT INTO buyers (name,email,phone,created_at) VALUES (?,?,?,?)",
+        (name, email, phone, now())).lastrowid
+
 def create_order(rid, name, email, phone, quantity, payment_method,
                  memo_code=None, seller_member=""):
     """Create buyer + order + tickets.
@@ -433,16 +464,7 @@ def create_order(rid, name, email, phone, quantity, payment_method,
         if raffle["status"] != "open":
             raise ValueError("raffle is closed")
 
-        buyer = None
-        if email:
-            buyer = conn.execute("SELECT * FROM buyers WHERE email=?",
-                                 (email,)).fetchone()
-        if buyer:
-            bid = buyer["id"]
-        else:
-            bid = conn.execute(
-                "INSERT INTO buyers (name,email,phone,created_at) VALUES (?,?,?,?)",
-                (name, email, phone, now())).lastrowid
+        bid = _find_or_create_buyer(conn, name, email, phone)
 
         receipt_id = "R-" + gen_code(10)
         lookup = gen_code(8)
@@ -577,16 +599,7 @@ def issue_comp_tickets(rid, name, email, phone, quantity, note=None):
         if raffle["status"] != "open":
             raise ValueError("raffle is closed")
 
-        buyer = None
-        if email:
-            buyer = conn.execute("SELECT * FROM buyers WHERE email=?",
-                                 (email,)).fetchone()
-        if buyer:
-            bid = buyer["id"]
-        else:
-            bid = conn.execute(
-                "INSERT INTO buyers (name,email,phone,created_at) VALUES (?,?,?,?)",
-                (name, email, phone, now())).lastrowid
+        bid = _find_or_create_buyer(conn, name, email, phone)
 
         receipt_id = "G-" + gen_code(10)   # G prefix = giveaway
         lookup = gen_code(8)
@@ -668,16 +681,7 @@ def amoe_entry(rid, name, email, phone="", address="", ip_hash="",
         if raffle["status"] != "open":
             raise ValueError("sweepstakes is closed")
 
-        buyer = None
-        if email:
-            buyer = conn.execute("SELECT * FROM buyers WHERE email=?",
-                                 (email,)).fetchone()
-        if buyer:
-            bid = buyer["id"]
-        else:
-            bid = conn.execute(
-                "INSERT INTO buyers (name,email,phone,created_at) VALUES (?,?,?,?)",
-                (name, email, phone, now())).lastrowid
+        bid = _find_or_create_buyer(conn, name, email, phone)
 
         receipt_id = "E-" + gen_code(10)
         lookup = gen_code(8)
