@@ -473,6 +473,23 @@ in your banking app, then Approve.</p>
             f"<td>{int(b.get('cancelled_tickets') or 0)}</td>"
             f"<td style='color:#8b93a5'>${cancel_amt:,.2f}</td></tr>")
     bd = bd or '<tr><td colspan="8" style="color:#8b93a5">No payment activity yet.</td></tr>'
+    paid_total_amount = sum(float(b.get('paid_amount') or 0) for b in breakdown)
+    paid_total_tickets = sum(int(b.get('paid_tickets') or 0) for b in breakdown)
+    paid_total_orders = sum(int(b.get('paid_orders') or 0) for b in breakdown)
+    paid_total_box = f"""
+<div style="margin:18px auto 4px;max-width:560px;text-align:center;
+            border:3px solid #22c55e;border-radius:22px;padding:18px 20px;
+            background:radial-gradient(circle at 50% 0%, rgba(34,197,94,.24), rgba(15,23,42,.96) 62%);
+            box-shadow:0 0 0 4px rgba(34,197,94,.14),0 0 30px rgba(34,197,94,.38), inset 0 0 18px rgba(34,197,94,.18)">
+  <div style="font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:#86efac;font-weight:800">Paid Total</div>
+  <div style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:42px;line-height:1.1;
+              color:#bbf7d0;text-shadow:0 0 10px #22c55e,0 0 22px rgba(34,197,94,.55);font-weight:900">
+    ${paid_total_amount:,.2f}
+  </div>
+  <div style="margin-top:8px;color:#e5e7eb;font-size:15px">
+    <b>{paid_total_tickets}</b> paid ticket(s) sold &middot; <b>{paid_total_orders}</b> paid order(s)
+  </div>
+</div>"""
 
     seller_rows = ""
     for s in seller_board:
@@ -656,7 +673,8 @@ Telegram, Facebook, and other link-preview crawlers; unique visitors are approxi
 <div class="card"><h2 style="margin-top:0">Payment methods</h2>
 <p class="sub">Paid totals count only confirmed paid tickets. Pending and cancelled amounts are shown separately and are not included in paid totals.</p>
 <table><tr><th>Method</th><th>Paid orders</th><th>Paid tickets</th><th>Paid total</th><th>Pending tickets</th><th>Pending $</th><th>Cancelled tickets</th><th>Cancelled $</th></tr>
-{bd}</table></div>
+{bd}</table>
+{paid_total_box}</div>
 <div class="card"><h2 style="margin-top:0">Draw</h2>{draw_btn}</div>""",
     nav='<div class="nav"><a href="/">&larr; All sweepstakes</a></div>')
 

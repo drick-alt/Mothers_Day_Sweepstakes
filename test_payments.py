@@ -123,7 +123,8 @@ admin_html_for_payments = views.page_admin(
     breakdown, [], db.comp_stats(RID), db.printed_counts(RID),
     db.raffle_page_hit_stats(RID), [])
 for needle in ["Paid tickets", "Paid total", "Cancelled tickets", "Cancelled $",
-               "not included in paid totals"]:
+               "not included in paid totals", "$150.00", "paid ticket(s) sold",
+               "box-shadow:0 0 0 4px rgba(34,197,94"]:
     chk(f"admin payment table contains {needle}", needle in admin_html_for_payments, True)
 
 print()
