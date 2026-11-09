@@ -5,6 +5,7 @@ Focus: the invariant that pending tickets must never affect the odds.
 
 import db
 import payments
+import views
 from odds import compute_odds, pct
 
 P = F = 0
@@ -109,6 +110,21 @@ chk("7 pending", db.pending_tickets(RID), 7)
 db.cancel_order(o3["lookup_code"], "never paid")
 chk("pending back to 0", db.pending_tickets(RID), 0)
 chk("active pool untouched", db.total_tickets(RID), 15)
+breakdown = db.payment_breakdown(RID)
+zelle = next((r for r in breakdown if r["payment_method"] == "zelle"), None)
+assert zelle is not None
+chk("zelle paid tickets exclude cancelled", zelle["paid_tickets"], 10)
+chk("zelle paid amount excludes cancelled", zelle["paid_amount"], 100.0)
+chk("zelle cancelled tickets tracked separately", zelle["cancelled_tickets"], 7)
+chk("zelle cancelled amount tracked separately", zelle["cancelled_amount"], 70.0)
+admin_html_for_payments = views.page_admin(
+    db.get_raffle(RID), db.total_tickets(RID), db.pending_tickets(RID),
+    db.revenue(RID), db.pending_revenue(RID), [], db.pending_orders(RID),
+    breakdown, [], db.comp_stats(RID), db.printed_counts(RID),
+    db.raffle_page_hit_stats(RID), [])
+for needle in ["Paid tickets", "Paid total", "Cancelled tickets", "Cancelled $",
+               "not included in paid totals"]:
+    chk(f"admin payment table contains {needle}", needle in admin_html_for_payments, True)
 
 print()
 print("=" * 68)

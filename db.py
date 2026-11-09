@@ -1018,13 +1018,27 @@ def pending_orders(rid):
 
 
 def payment_breakdown(rid):
+    """Admin accounting by payment method.
+
+    Keep paid totals separate from pending/cancelled rows so cancelled orders
+    are never read as collected revenue or sold tickets.
+    """
     conn = connect()
     rows = conn.execute(
-        """SELECT payment_method, payment_status, COUNT(*) orders,
-                  SUM(quantity) tickets, SUM(amount_paid) amount
+        """SELECT payment_method,
+                  COUNT(*) orders,
+                  SUM(CASE WHEN payment_status='paid' THEN 1 ELSE 0 END) paid_orders,
+                  SUM(CASE WHEN payment_status='paid' THEN quantity ELSE 0 END) paid_tickets,
+                  SUM(CASE WHEN payment_status='paid' THEN amount_paid ELSE 0 END) paid_amount,
+                  SUM(CASE WHEN payment_status='pending' THEN 1 ELSE 0 END) pending_orders,
+                  SUM(CASE WHEN payment_status='pending' THEN quantity ELSE 0 END) pending_tickets,
+                  SUM(CASE WHEN payment_status='pending' THEN amount_paid ELSE 0 END) pending_amount,
+                  SUM(CASE WHEN payment_status='cancelled' THEN 1 ELSE 0 END) cancelled_orders,
+                  SUM(CASE WHEN payment_status='cancelled' THEN quantity ELSE 0 END) cancelled_tickets,
+                  SUM(CASE WHEN payment_status='cancelled' THEN amount_paid ELSE 0 END) cancelled_amount
            FROM orders WHERE raffle_id=?
-           GROUP BY payment_method,payment_status
-           ORDER BY payment_method""", (rid,)).fetchall()
+           GROUP BY payment_method
+           ORDER BY paid_amount DESC, paid_tickets DESC, payment_method""", (rid,)).fetchall()
     conn.close()
     return [dict(r) for r in rows]
 

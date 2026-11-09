@@ -458,10 +458,21 @@ in your banking app, then Approve.</p>
 <table><tr><th>Entrant</th><th>Sold by</th><th>Method</th><th>Qty</th><th>Amount</th>
 <th>Memo</th><th>Action</th></tr>{pr}</table></div>"""
 
-    bd = "".join(f"<tr><td>{escape(b['payment_method'])}</td>"
-                 f"<td><span class='badge {b['payment_status']}'>{b['payment_status']}</span></td>"
-                 f"<td>{b['orders']}</td><td>{b['tickets']}</td>"
-                 f"<td>${b['amount']:,.2f}</td></tr>" for b in breakdown)
+    bd = ""
+    for b in breakdown:
+        paid_amt = float(b.get('paid_amount') or 0)
+        pend_amt = float(b.get('pending_amount') or 0)
+        cancel_amt = float(b.get('cancelled_amount') or 0)
+        bd += (
+            f"<tr><td>{escape(b['payment_method'])}</td>"
+            f"<td>{int(b.get('paid_orders') or 0)}</td>"
+            f"<td>{int(b.get('paid_tickets') or 0)}</td>"
+            f"<td><b>${paid_amt:,.2f}</b></td>"
+            f"<td>{int(b.get('pending_tickets') or 0)}</td>"
+            f"<td>${pend_amt:,.2f}</td>"
+            f"<td>{int(b.get('cancelled_tickets') or 0)}</td>"
+            f"<td style='color:#8b93a5'>${cancel_amt:,.2f}</td></tr>")
+    bd = bd or '<tr><td colspan="8" style="color:#8b93a5">No payment activity yet.</td></tr>'
 
     seller_rows = ""
     for s in seller_board:
@@ -643,7 +654,8 @@ Telegram, Facebook, and other link-preview crawlers; unique visitors are approxi
 <table><tr><th>Entrant</th><th>Method</th><th>Entries</th><th>Win chance</th><th>Exp. prizes</th></tr>
 {rows}</table></div>
 <div class="card"><h2 style="margin-top:0">Payment methods</h2>
-<table><tr><th>Method</th><th>Status</th><th>Orders</th><th>Tickets</th><th>Amount</th></tr>
+<p class="sub">Paid totals count only confirmed paid tickets. Pending and cancelled amounts are shown separately and are not included in paid totals.</p>
+<table><tr><th>Method</th><th>Paid orders</th><th>Paid tickets</th><th>Paid total</th><th>Pending tickets</th><th>Pending $</th><th>Cancelled tickets</th><th>Cancelled $</th></tr>
 {bd}</table></div>
 <div class="card"><h2 style="margin-top:0">Draw</h2>{draw_btn}</div>""",
     nav='<div class="nav"><a href="/">&larr; All sweepstakes</a></div>')
