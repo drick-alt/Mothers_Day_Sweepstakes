@@ -564,6 +564,47 @@ def cancel_order(lookup_code, reason="cancelled"):
     return True
 
 
+def void_giveaway_receipt(rid, receipt_id, buyer_name="", reason="voided by admin"):
+    """Void a paid giveaway/comp order by receipt id.
+
+    This is intentionally narrower than cancel_order(): donated paid orders
+    must not be removable through this path. Used to clean up test giveaway
+    tickets that were accidentally issued into the live drum.
+    """
+    receipt_id = (receipt_id or "").strip().upper()
+    buyer_name = (buyer_name or "").strip()
+    if not receipt_id:
+        raise ValueError("receipt_id is required")
+    conn = connect()
+    try:
+        o = conn.execute(
+            """SELECT o.*, b.name buyer_name FROM orders o
+               JOIN buyers b ON b.id=o.buyer_id
+               WHERE o.raffle_id=? AND o.receipt_id=?""",
+            (rid, receipt_id)).fetchone()
+        if not o:
+            raise ValueError("giveaway order not found")
+        if o["payment_method"] != "comp" or o["entry_source"] != "comp":
+            raise ValueError("only giveaway/comp orders can be voided here")
+        if buyer_name and (o["buyer_name"] or "").strip().lower() != buyer_name.lower():
+            raise ValueError("buyer name does not match receipt")
+        if conn.execute("SELECT COUNT(*) c FROM draws WHERE raffle_id=?", (rid,)).fetchone()["c"]:
+            raise ValueError("cannot void giveaway entries after the drawing has run")
+        before = conn.execute(
+            "SELECT COUNT(*) c FROM tickets WHERE order_id=? AND status='active'",
+            (o["id"],)).fetchone()["c"]
+        conn.execute("UPDATE orders SET payment_status='cancelled' WHERE id=?", (o["id"],))
+        conn.execute("UPDATE tickets SET status='void', voided=1 WHERE order_id=?", (o["id"],))
+        log_event(conn, o["id"], "giveaway_voided", f"{reason}; active_tickets={before}")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        conn.close()
+        raise
+    conn.close()
+    return int(before or 0)
+
+
 def set_provider_ref(lookup_code, ref):
     conn = connect()
     o = conn.execute("SELECT id FROM orders WHERE lookup_code=?",

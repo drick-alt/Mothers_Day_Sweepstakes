@@ -636,6 +636,23 @@ def admin_reject(code: str):
     return RedirectResponse(f"/admin/{order['raffle_id']}", status_code=303)
 
 
+@app.post("/admin/{rid}/giveaway/void")
+def admin_void_giveaway(rid: int, receipt_id: str = Form(""),
+                        buyer_name: str = Form(""), reason: str = Form("")):
+    """Void an accidentally-issued giveaway/comp order.
+
+    Guarded in db.py so this cannot void paid donated entries.
+    """
+    try:
+        removed = db.void_giveaway_receipt(
+            rid, receipt_id, buyer_name,
+            reason.strip() or "voided by admin")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return RedirectResponse(
+        f"/admin/{rid}?removed_giveaway={removed}", status_code=303)
+
+
 @app.get("/enter/{rid}", response_class=HTMLResponse)
 def free_entry_form(rid: int, err: str = "", ok: str = ""):
     """PUBLIC free-entry page. This is the AMOE -- the legal free path.

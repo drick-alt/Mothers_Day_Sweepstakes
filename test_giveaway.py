@@ -110,7 +110,29 @@ print("  -> giveaway logic did not break the payment-integrity fix")
 
 print()
 print("=" * 68)
-print("7. Giveaway tickets can win")
+print("7. Admin can void accidental giveaway entries, but not paid orders")
+print("=" * 68)
+test_gift = db.issue_comp_tickets(RID, "Test Giveaway", "testgift@t.com", "555", 2,
+                                  "cleanup test")
+chk("pool includes temporary giveaway", db.total_tickets(RID), 12)
+removed = db.void_giveaway_receipt(RID, test_gift["receipt_id"], "Test Giveaway",
+                                   "test cleanup")
+chk("voided temporary giveaway ticket count", removed, 2)
+chk("pool drops after voiding giveaway", db.total_tickets(RID), 10)
+if all(t not in {d["ticket_number"] for d in db.drum_list(RID)}
+       for t in test_gift["ticket_numbers"]):
+    ok("voided giveaway tickets removed from drum")
+else:
+    no("voided giveaway tickets still in drum")
+try:
+    db.void_giveaway_receipt(RID, p["receipt_id"], "Paying Paula", "must refuse paid")
+    no("paid donated order was voided through giveaway cleanup -- BUG")
+except ValueError as e:
+    ok(f"paid donated order refused by giveaway cleanup ({e})")
+
+print()
+print("=" * 68)
+print("8. Giveaway tickets can win")
 print("=" * 68)
 w = db.draw_winners(RID)
 chk("4 winners", len(w), 4)
