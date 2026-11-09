@@ -7,7 +7,7 @@ if os.path.exists(SCRATCH):
     os.remove(SCRATCH)
 os.environ["RAFFLE_DB_PATH"] = SCRATCH
 
-import db, odds
+import db, odds, views
 
 P, F = 0, 0
 def chk(label, got, want):
@@ -49,6 +49,11 @@ chk("drum excludes stock", len(db.drum_list(RID)), 3)
 c = db.printed_counts(RID)
 chk("printed available", c["available"], 1100)
 chk("printed active", c["active"], 0)
+admin_printed_html = views.page_printed_tickets(
+    db.get_raffle(RID), db.printed_counts(RID), db.printed_stock(RID, "available"),
+    "available", 1)
+chk("printed form has seller/member field", 'name="seller_member"' in admin_printed_html, True)
+chk("printed form label mentions member", "Organization member who sold this ticket" in admin_printed_html, True)
 print(f"     first 3 stubs: {[m['ticket_number'] for m in made[:3]]}")
 print(f"     last  3 stubs: {[m['ticket_number'] for m in made[-3:]]}")
 print(f"     check codes  : {[m['check_code'] for m in made[:3]]}")
@@ -79,11 +84,25 @@ print("4. Admin moves 5 sold stubs into the LIVE pool")
 print("=" * 66)
 sell = nums[:5]
 live_before = db.total_tickets(RID)
-moved = db.activate_printed_tickets(RID, sell, holder_name="Church Table Sale")
+moved_info = db.activate_printed_tickets(
+    RID, sell, holder_name="Church Table Sale", holder_email="church@example.com",
+    holder_phone="7705550101", seller_member="Member Mary", return_order=True)
+moved = moved_info["ticket_numbers"]
 chk("tickets moved", len(moved), 5)
+chk("printed activation returns lookup code", bool(moved_info["lookup_code"]), True)
+printed_order = db.get_order_by_lookup(moved_info["lookup_code"])
+assert printed_order is not None
+chk("printed receipt buyer name", printed_order["buyer_name"], "Church Table Sale")
+chk("printed receipt buyer email", printed_order["buyer_email"], "church@example.com")
+chk("printed order seller member", printed_order["seller_member"], "Member Mary")
+chk("printed order method", printed_order["payment_method"], "printed")
 chk("live pool grew by exactly 5", db.total_tickets(RID), live_before + 5)
 chk("printed available now", db.printed_counts(RID)["available"], 1095)
 chk("printed active now", db.printed_counts(RID)["active"], 5)
+member_row = next((r for r in db.seller_member_leaderboard(RID)
+                   if r["seller_member"] == "Member Mary"), None)
+chk("printed seller appears on leaderboard", member_row is not None, True)
+chk("printed seller paid tickets", member_row["paid_tickets"] if member_row else None, 5)
 drum = {d["ticket_number"] for d in db.drum_list(RID)}
 chk("moved stubs ARE in the drum", all(s in drum for s in sell), True)
 chk("unsold stubs are NOT in the drum",

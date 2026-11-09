@@ -495,7 +495,7 @@ def admin_seed_printed(rid: int, count: int = Form(1100)):
 @app.get("/admin/{rid}/printed", response_class=HTMLResponse)
 def admin_printed(rid: int, seeded: str = "", moved: str = "",
                   returned: str = "", err: str = "", show: str = "available",
-                  page: int = 1):
+                  page: int = 1, emailed: str = ""):
     """Printed ticket console: available stock + what has gone live."""
     s = db.get_raffle(rid)
     if not s:
@@ -503,7 +503,7 @@ def admin_printed(rid: int, seeded: str = "", moved: str = "",
     show = show if show in ("available", "active") else "available"
     return views.page_printed_tickets(
         s, db.printed_counts(rid), db.printed_stock(rid, show), show,
-        max(1, page), seeded, moved, returned, err)
+        max(1, page), seeded, moved, returned, err, emailed)
 
 
 @app.post("/admin/{rid}/printed/activate")
@@ -520,17 +520,29 @@ async def admin_activate_printed(rid: int, request: Request):
             f"/admin/{rid}/printed?err=Select+at+least+one+ticket",
             status_code=303)
     try:
-        moved = db.activate_printed_tickets(
+        result = db.activate_printed_tickets(
             rid, numbers,
             holder_name=str(form.get("holder_name", "")),
             holder_email=str(form.get("holder_email", "")),
             holder_phone=str(form.get("holder_phone", "")),
-            note=str(form.get("note", "")))
+            note=str(form.get("note", "")),
+            seller_member=str(form.get("seller_member", "")),
+            return_order=True)
+        moved = result["ticket_numbers"]
     except ValueError as e:
         return RedirectResponse(
             f"/admin/{rid}/printed?err={quote(str(e))}", status_code=303)
+    emailed = ""
+    if str(form.get("holder_email", "")).strip():
+        mail_res = _email_receipt(result["lookup_code"])
+        if mail_res.get("sent"):
+            emailed = "Receipt email sent to printed-ticket buyer."
+        else:
+            emailed = "Printed tickets moved, but receipt email was not sent: " + mail_res.get("reason", "unknown error")
     return RedirectResponse(
-        f"/admin/{rid}/printed?moved={len(moved)}", status_code=303)
+        f"/admin/{rid}/printed?moved={len(moved)}"
+        + (f"&emailed={quote(emailed)}" if emailed else ""),
+        status_code=303)
 
 
 @app.post("/admin/{rid}/printed/return")

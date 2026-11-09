@@ -709,7 +709,7 @@ Questions? Contact
 
 
 def page_printed_tickets(s, counts, rows, show, page, seeded="", moved="",
-                         returned="", err=""):
+                         returned="", err="", emailed=""):
     """Printed ticket console -- the Available Pool and the Live Pool.
 
     The whole point of this screen: stock sits in 'Available' where it counts
@@ -735,6 +735,8 @@ def page_printed_tickets(s, counts, rows, show, page, seeded="", moved="",
     if returned:
         notes += (f'<div class="okbox">Returned <b>{escape(returned)}</b> '
                   f'ticket(s) to available.</div>')
+    if emailed:
+        notes += f'<div class="okbox">{escape(emailed)}</div>'
     if err:
         notes += f'<div class="errbox">{escape(err)}</div>'
 
@@ -765,9 +767,11 @@ sell a stub and move it into the live pool.</p>
         extra = ""
         if not is_avail:
             who = escape(r.get("buyer_name") or "")
+            email = escape(r.get("buyer_email") or "")
+            seller = escape(r.get("seller_member") or "")
             when = escape((r.get("activated_at") or "")[:16].replace("T", " "))
             note = escape(r.get("holder_note") or "")
-            extra = f"<td>{who}</td><td>{when}</td><td>{note}</td>"
+            extra = f"<td>{who}</td><td>{email}</td><td>{seller}</td><td>{when}</td><td>{note}</td>"
         trs += (f'<tr><td><input type="checkbox" name="ticket_number" '
                 f'value="{tn}" style="width:auto"></td>'
                 f'<td style="font-family:ui-monospace,Menlo,monospace;'
@@ -777,7 +781,7 @@ sell a stub and move it into the live pool.</p>
 
     head = ('<th style="width:34px"></th><th>Ticket #</th><th>Check code</th>')
     if not is_avail:
-        head += "<th>Holder</th><th>Moved at</th><th>Note</th>"
+        head += "<th>Holder</th><th>Email</th><th>Sold by</th><th>Moved at</th><th>Note</th>"
 
     pager = ""
     if pages > 1:
@@ -801,6 +805,8 @@ sell a stub and move it into the live pool.</p>
 <input name="holder_email" placeholder="for winner contact"></div>
 <div><label>Phone (optional)</label>
 <input name="holder_phone" placeholder="for winner contact"></div>
+<div><label>Organization member who sold this ticket</label>
+<input name="seller_member" placeholder="Member/seller name for leaderboard"></div>
 <div><label>Note (optional)</label>
 <input name="note" placeholder="e.g. church table, Oct 30"></div>
 </div>

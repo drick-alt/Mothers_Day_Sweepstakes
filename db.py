@@ -1050,7 +1050,7 @@ def seller_member_leaderboard(rid):
              SUM(CASE WHEN payment_status IN ('paid','pending') THEN quantity ELSE 0 END) total_open_tickets
            FROM orders
            WHERE raffle_id=? AND payment_status IN ('paid','pending')
-             AND COALESCE(entry_source,'purchase')='purchase'
+             AND COALESCE(entry_source,'purchase') IN ('purchase','printed')
            GROUP BY seller_member
            ORDER BY paid_tickets DESC, pending_tickets DESC, paid_amount DESC, seller_member""",
         (rid,)).fetchall()
@@ -1237,8 +1237,10 @@ def printed_stock(rid, status="available", limit=5000):
     conn = connect()
     rows = conn.execute(
         """SELECT t.ticket_number,t.check_code,t.status,t.activated_at,
-                  t.holder_note,b.name buyer_name
+                  t.holder_note,b.name buyer_name,b.email buyer_email,
+                  b.phone buyer_phone,o.receipt_id,o.lookup_code,o.seller_member
            FROM tickets t LEFT JOIN buyers b ON b.id=t.buyer_id
+           LEFT JOIN orders o ON o.id=t.order_id
            WHERE t.raffle_id=? AND t.source='printed' AND t.status=?
            ORDER BY CAST(t.ticket_number AS INTEGER) LIMIT ?""",
         (rid, status, limit)).fetchall()
@@ -1247,7 +1249,8 @@ def printed_stock(rid, status="available", limit=5000):
 
 
 def activate_printed_tickets(rid, numbers, holder_name="", holder_email="",
-                             holder_phone="", note=""):
+                             holder_phone="", note="", seller_member="",
+                             return_order=False):
     """Move sold printed tickets from 'available' into the LIVE pool.
 
     Only flips rows that are BOTH source='printed' AND status='available',
@@ -1279,23 +1282,21 @@ def activate_printed_tickets(rid, numbers, holder_name="", holder_email="",
         # Each activation batch becomes a real, auditable order so the sale
         # shows up in revenue exactly like any other paid entry.
         if holder_name.strip():
-            bid = conn.execute(
-                "INSERT INTO buyers (name,email,phone,created_at) "
-                "VALUES (?,?,?,?)",
-                (holder_name.strip(), holder_email.strip(),
-                 holder_phone.strip(), now())).lastrowid
+            bid = _find_or_create_buyer(conn, holder_name, holder_email, holder_phone)
         else:
             bid, _ = _stock_holder(conn, rid, PRINTED_BEARER_BUYER,
                                    "printed_bearer", "stock")
 
         amount = len(eligible) * (raffle["ticket_price"] or 0)
+        receipt_id = "R-" + gen_code(10)
+        lookup_code = gen_code(8)
         oid = conn.execute(
             """INSERT INTO orders (raffle_id,buyer_id,receipt_id,lookup_code,
                quantity,amount_paid,payment_status,payment_method,
-               entry_source,paid_at,created_at)
-               VALUES (?,?,?,?,?,?,'paid','printed','printed',?,?)""",
-            (rid, bid, "R-" + gen_code(10), gen_code(8), len(eligible),
-             amount, now(), now())).lastrowid
+               entry_source,seller_member,paid_at,created_at)
+               VALUES (?,?,?,?,?,?,'paid','printed','printed',?,?,?)""",
+            (rid, bid, receipt_id, lookup_code, len(eligible),
+             amount, (seller_member or '').strip(), now(), now())).lastrowid
 
         conn.execute(
             f"""UPDATE tickets SET status='active', order_id=?, buyer_id=?,
@@ -1311,6 +1312,10 @@ def activate_printed_tickets(rid, numbers, holder_name="", holder_email="",
         conn.close()
         raise
     conn.close()
+    if return_order:
+        return {"ticket_numbers": eligible, "lookup_code": lookup_code,
+                "receipt_id": receipt_id, "order_id": oid,
+                "buyer_id": bid, "seller_member": (seller_member or '').strip()}
     return eligible
 
 
