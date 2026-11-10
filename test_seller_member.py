@@ -138,8 +138,12 @@ admin_html = views.page_admin(
     db.raffle_page_hit_stats(RID),
     board,
 )
-for needle in ["Member sales leaderboard", "Alice Member", "Bob Member", "Paid tickets", "Pending $"]:
+for needle in ["Member sales leaderboard", "Alice Member", "Bob Member", "Paid tickets", "Pending $",
+               "Sales Leader", "Second Place", "color:#22c55e", "color:#facc15",
+               "🏆 Alice Member", "🥈 On Point", "leader name is green"]:
     chk(f"admin contains {needle}", needle in admin_html, True)
+chk("member leaderboard moved above details", admin_html.find("Member sales leaderboard") < admin_html.find("Printed Tickets"), True)
+chk("create raffle moved near bottom after draw", admin_html.find("Draw</h2>") < admin_html.find("Create another raffle"), True)
 
 print()
 print("=" * 70)

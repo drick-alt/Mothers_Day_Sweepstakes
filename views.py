@@ -491,21 +491,40 @@ in your banking app, then Approve.</p>
   </div>
 </div>"""
 
+    def _seller_name(seller):
+        return (seller or "Online / not specified")
+
+    leader = seller_board[0] if len(seller_board) >= 1 else None
+    runner_up = seller_board[1] if len(seller_board) >= 2 else None
+    leader_name = _seller_name(leader.get('seller_member')) if leader else "-"
+    runner_name = _seller_name(runner_up.get('seller_member')) if runner_up else "-"
+    leader_tickets = int(leader.get('paid_tickets') or 0) if leader else 0
+    runner_tickets = int(runner_up.get('paid_tickets') or 0) if runner_up else 0
+
     seller_rows = ""
-    for s in seller_board:
+    for idx, s in enumerate(seller_board):
         paid_t = int(s.get('paid_tickets') or 0)
         pend_t_s = int(s.get('pending_tickets') or 0)
         total_t = int(s.get('total_open_tickets') or 0)
         paid_amt = float(s.get('paid_amount') or 0)
         pend_amt_s = float(s.get('pending_amount') or 0)
+        member = escape(s.get('seller_member') or 'Online / not specified')
+        if idx == 0:
+            member_html = (f"<span style='color:#22c55e;font-weight:900;"
+                           f"text-shadow:0 0 10px rgba(34,197,94,.55)'>🏆 {member}</span>")
+        elif idx == 1:
+            member_html = (f"<span style='color:#facc15;font-weight:900;"
+                           f"text-shadow:0 0 10px rgba(250,204,21,.45)'>🥈 {member}</span>")
+        else:
+            member_html = member
         seller_rows += (
-            f"<tr><td>{escape(s.get('seller_member') or 'Online / not specified')}</td>"
+            f"<tr><td>{member_html}</td>"
             f"<td>{paid_t}</td><td>{pend_t_s}</td><td>{total_t}</td>"
             f"<td>${paid_amt:,.2f}</td><td>${pend_amt_s:,.2f}</td>"
             f"<td>{int(s.get('orders') or 0)}</td></tr>")
     seller_rows = seller_rows or '<tr><td colspan="7" style="color:#8b93a5">No seller/member data yet.</td></tr>'
     seller_html = f"""<div class="card"><h2 style="margin-top:0">Member sales leaderboard</h2>
-<p class="sub">Tracks the organization member entered on the ticket purchase form. Paid tickets are confirmed; pending tickets are reserved but not in the drawing pool until approved.</p>
+<p class="sub">Tracks the organization member entered on the ticket purchase form. The leader name is green; second place is yellow.</p>
 <table><tr><th>Member</th><th>Paid tickets</th><th>Pending</th><th>Total</th><th>Paid revenue</th><th>Pending $</th><th>Orders</th></tr>{seller_rows}</table></div>"""
 
     comp = comp or {"comp": 0, "paid": 0}
@@ -652,12 +671,16 @@ Telegram, Facebook, and other link-preview crawlers; unique visitors are approxi
 <div class="stat"><div class="label">Revenue</div><div class="value">${rev:,.2f}</div></div>
 <div class="stat"><div class="label">Unconfirmed</div>
 <div class="value" style="color:#fbbf24;font-size:20px">${pend_rev:,.2f}</div></div>
-<div class="stat"><div class="label">Entrants</div><div class="value">{len(board)}</div></div>
+<div class="stat"><div class="label">Sales Leader</div>
+<div class="value" style="color:#22c55e;font-size:22px;text-shadow:0 0 10px rgba(34,197,94,.55)">{escape(leader_name)}</div>
+<div style="font-size:12px;color:#86efac;margin-top:4px">{leader_tickets} paid ticket(s)</div></div>
+<div class="stat"><div class="label">Second Place</div>
+<div class="value" style="color:#facc15;font-size:22px;text-shadow:0 0 10px rgba(250,204,21,.45)">{escape(runner_name)}</div>
+<div style="font-size:12px;color:#fde68a;margin-top:4px">{runner_tickets} paid ticket(s)</div></div>
 {comp_tile}
 </div></div>
-{create_html}
-{details_html}
 {seller_html}
+{details_html}
 {hit_html}
 {prize_html}
 {give_html}
@@ -676,7 +699,8 @@ Telegram, Facebook, and other link-preview crawlers; unique visitors are approxi
 <table><tr><th>Method</th><th>Paid orders</th><th>Paid tickets</th><th>Paid total</th><th>Pending tickets</th><th>Pending $</th><th>Cancelled tickets</th><th>Cancelled $</th></tr>
 {bd}</table>
 {paid_total_box}</div>
-<div class="card"><h2 style="margin-top:0">Draw</h2>{draw_btn}</div>""",
+<div class="card"><h2 style="margin-top:0">Draw</h2>{draw_btn}</div>
+{create_html}""",
     nav='<div class="nav"><a href="/">&larr; All sweepstakes</a></div>')
 
 
