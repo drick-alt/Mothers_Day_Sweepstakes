@@ -129,6 +129,12 @@ chk("online ticket 000001 not hijacked",
 n_back = db.return_printed_to_available(RID, [nums[5]])
 chk("return-to-available works", n_back, 1)
 chk("available restored", db.printed_counts(RID)["available"], 1094)
+printed_breakdown = next((r for r in db.payment_breakdown(RID)
+                          if r["payment_method"] == "printed"), None)
+assert printed_breakdown is not None
+chk("printed paid tickets exclude returned stub", printed_breakdown["paid_tickets"], 6)
+chk("printed paid amount excludes returned stub", printed_breakdown["paid_amount"], 60.0)
+chk("revenue excludes returned printed stub", db.revenue(RID), 110.0)
 
 print()
 print("=" * 66)

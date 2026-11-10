@@ -397,12 +397,13 @@ def buyer_ticket_count(rid, bid):
 
 
 def revenue(rid):
-    """Confirmed revenue only -- pending orders excluded."""
-    conn = connect()
-    r = conn.execute("SELECT COALESCE(SUM(amount_paid),0) t FROM orders "
-                     "WHERE raffle_id=? AND payment_status='paid'", (rid,)).fetchone()["t"]
-    conn.close()
-    return r
+    """Confirmed revenue only, using effective active printed tickets.
+
+    Printed tickets can be returned to available after an activation. When that
+    happens, the original paid printed order may still exist for audit history,
+    but returned stubs are no longer sold/active and must not inflate revenue.
+    """
+    return sum(float(r.get("paid_amount") or 0) for r in payment_breakdown(rid))
 
 
 def pending_revenue(rid):
@@ -1021,26 +1022,69 @@ def payment_breakdown(rid):
     """Admin accounting by payment method.
 
     Keep paid totals separate from pending/cancelled rows so cancelled orders
-    are never read as collected revenue or sold tickets.
+    are never read as collected revenue or sold tickets. For printed tickets,
+    count only currently-active printed stubs; returned-to-available stubs are
+    not sold and must not inflate revenue.
     """
     conn = connect()
-    rows = conn.execute(
-        """SELECT payment_method,
-                  COUNT(*) orders,
-                  SUM(CASE WHEN payment_status='paid' THEN 1 ELSE 0 END) paid_orders,
-                  SUM(CASE WHEN payment_status='paid' THEN quantity ELSE 0 END) paid_tickets,
-                  SUM(CASE WHEN payment_status='paid' THEN amount_paid ELSE 0 END) paid_amount,
-                  SUM(CASE WHEN payment_status='pending' THEN 1 ELSE 0 END) pending_orders,
-                  SUM(CASE WHEN payment_status='pending' THEN quantity ELSE 0 END) pending_tickets,
-                  SUM(CASE WHEN payment_status='pending' THEN amount_paid ELSE 0 END) pending_amount,
-                  SUM(CASE WHEN payment_status='cancelled' THEN 1 ELSE 0 END) cancelled_orders,
-                  SUM(CASE WHEN payment_status='cancelled' THEN quantity ELSE 0 END) cancelled_tickets,
-                  SUM(CASE WHEN payment_status='cancelled' THEN amount_paid ELSE 0 END) cancelled_amount
-           FROM orders WHERE raffle_id=?
-           GROUP BY payment_method
-           ORDER BY paid_amount DESC, paid_tickets DESC, payment_method""", (rid,)).fetchall()
+    raffle = conn.execute("SELECT ticket_price FROM raffles WHERE id=?", (rid,)).fetchone()
+    ticket_price = float(raffle["ticket_price"] or 0) if raffle else 0.0
+    orders = conn.execute(
+        """SELECT id,payment_method,payment_status,quantity,amount_paid
+           FROM orders WHERE raffle_id=?""", (rid,)).fetchall()
+    active_printed = {
+        r["order_id"]: r["tickets"] for r in conn.execute(
+            """SELECT order_id, COUNT(*) tickets FROM tickets
+               WHERE raffle_id=? AND source='printed' AND status='active'
+               GROUP BY order_id""", (rid,)).fetchall()
+    }
     conn.close()
-    return [dict(r) for r in rows]
+
+    by_method = {}
+    def row_for(method):
+        return by_method.setdefault(method, {
+            "payment_method": method,
+            "orders": 0,
+            "paid_orders": 0,
+            "paid_tickets": 0,
+            "paid_amount": 0.0,
+            "pending_orders": 0,
+            "pending_tickets": 0,
+            "pending_amount": 0.0,
+            "cancelled_orders": 0,
+            "cancelled_tickets": 0,
+            "cancelled_amount": 0.0,
+        })
+
+    for o in orders:
+        method = o["payment_method"] or "unknown"
+        out = row_for(method)
+        out["orders"] += 1
+        qty = int(o["quantity"] or 0)
+        amt = float(o["amount_paid"] or 0)
+        status = o["payment_status"]
+        if status == "paid":
+            if method == "printed":
+                qty = int(active_printed.get(o["id"], 0) or 0)
+                amt = qty * ticket_price
+                if qty <= 0:
+                    continue
+            out["paid_orders"] += 1
+            out["paid_tickets"] += qty
+            out["paid_amount"] += amt
+        elif status == "pending":
+            out["pending_orders"] += 1
+            out["pending_tickets"] += qty
+            out["pending_amount"] += amt
+        elif status == "cancelled":
+            out["cancelled_orders"] += 1
+            out["cancelled_tickets"] += qty
+            out["cancelled_amount"] += amt
+
+    return sorted(by_method.values(),
+                  key=lambda r: (-float(r["paid_amount"] or 0),
+                                 -int(r["paid_tickets"] or 0),
+                                 r["payment_method"]))
 
 
 def seller_member_leaderboard(rid):
