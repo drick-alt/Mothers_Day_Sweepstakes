@@ -102,6 +102,18 @@ board = db.seller_member_leaderboard(RID)
 onpoint_row = find(board, "On Point")
 chk("On Point paid tickets after reassignment", onpoint_row["paid_tickets"], 1)
 chk("On Point pending tickets after reassignment", onpoint_row["pending_tickets"], 4)
+printed = db.seed_printed_tickets(RID, 4)
+printed_nums = [r["ticket_number"] for r in printed]
+db.activate_printed_tickets(RID, printed_nums, holder_name="Printed Buyer",
+                            holder_email="printed@example.com",
+                            holder_phone="7705550006",
+                            seller_member="On Point")
+db.return_printed_to_available(RID, printed_nums[:2])
+board = db.seller_member_leaderboard(RID)
+onpoint_row = find(board, "On Point")
+chk("On Point paid tickets exclude returned printed", onpoint_row["paid_tickets"], 3)
+chk("On Point paid amount excludes returned printed", onpoint_row["paid_amount"], 30.0)
+chk("On Point pending unchanged after printed return", onpoint_row["pending_tickets"], 4)
 if any(r["seller_member"] == "Online / not specified" for r in board):
     no("blank seller row remained after reassignment")
 else:

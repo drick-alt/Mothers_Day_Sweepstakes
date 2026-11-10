@@ -1088,32 +1088,68 @@ def payment_breakdown(rid):
 
 
 def seller_member_leaderboard(rid):
-    """Ticket-sale totals by the organization member entered on /buy.
+    """Ticket-sale totals by organization member.
 
-    Shows paid and pending separately so the admin can see both confirmed sales
-    and money/tickets still awaiting manual payment confirmation.
+    Uses effective paid totals: printed tickets count only while their stubs are
+    active in the live pool, so returned printed tickets do not inflate seller
+    totals.
     """
     conn = connect()
+    raffle = conn.execute("SELECT ticket_price FROM raffles WHERE id=?", (rid,)).fetchone()
+    ticket_price = float(raffle["ticket_price"] or 0) if raffle else 0.0
     rows = conn.execute(
-        """SELECT
-             CASE
-               WHEN TRIM(COALESCE(seller_member,'')) = '' THEN 'Online / not specified'
-               ELSE TRIM(seller_member)
-             END seller_member,
-             COUNT(*) orders,
-             SUM(CASE WHEN payment_status='paid' THEN quantity ELSE 0 END) paid_tickets,
-             SUM(CASE WHEN payment_status='pending' THEN quantity ELSE 0 END) pending_tickets,
-             SUM(CASE WHEN payment_status='paid' THEN amount_paid ELSE 0 END) paid_amount,
-             SUM(CASE WHEN payment_status='pending' THEN amount_paid ELSE 0 END) pending_amount,
-             SUM(CASE WHEN payment_status IN ('paid','pending') THEN quantity ELSE 0 END) total_open_tickets
+        """SELECT id, seller_member, payment_status, payment_method,
+                  entry_source, quantity, amount_paid
            FROM orders
            WHERE raffle_id=? AND payment_status IN ('paid','pending')
-             AND COALESCE(entry_source,'purchase') IN ('purchase','printed')
-           GROUP BY seller_member
-           ORDER BY paid_tickets DESC, pending_tickets DESC, paid_amount DESC, seller_member""",
+             AND COALESCE(entry_source,'purchase') IN ('purchase','printed')""",
         (rid,)).fetchall()
+    active_printed = {
+        r["order_id"]: r["tickets"] for r in conn.execute(
+            """SELECT order_id, COUNT(*) tickets FROM tickets
+               WHERE raffle_id=? AND source='printed' AND status='active'
+               GROUP BY order_id""", (rid,)).fetchall()
+    }
     conn.close()
-    return [dict(r) for r in rows]
+
+    board = {}
+    def row_for(member):
+        member = (member or "").strip() or "Online / not specified"
+        return board.setdefault(member, {
+            "seller_member": member,
+            "orders": 0,
+            "paid_tickets": 0,
+            "pending_tickets": 0,
+            "paid_amount": 0.0,
+            "pending_amount": 0.0,
+            "total_open_tickets": 0,
+        })
+
+    for o in rows:
+        out = row_for(o["seller_member"])
+        qty = int(o["quantity"] or 0)
+        amt = float(o["amount_paid"] or 0)
+        if o["payment_status"] == "paid":
+            if (o["payment_method"] == "printed" or o["entry_source"] == "printed"):
+                qty = int(active_printed.get(o["id"], 0) or 0)
+                amt = qty * ticket_price
+                if qty <= 0:
+                    continue
+            out["orders"] += 1
+            out["paid_tickets"] += qty
+            out["paid_amount"] += amt
+            out["total_open_tickets"] += qty
+        elif o["payment_status"] == "pending":
+            out["orders"] += 1
+            out["pending_tickets"] += qty
+            out["pending_amount"] += amt
+            out["total_open_tickets"] += qty
+
+    return sorted(board.values(),
+                  key=lambda r: (-int(r["paid_tickets"] or 0),
+                                 -int(r["pending_tickets"] or 0),
+                                 -float(r["paid_amount"] or 0),
+                                 r["seller_member"]))
 
 
 def assign_blank_seller_member(rid, seller_member):
