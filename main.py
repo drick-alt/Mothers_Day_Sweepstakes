@@ -665,6 +665,18 @@ def admin_void_giveaway(rid: int, receipt_id: str = Form(""),
         f"/admin/{rid}?removed_giveaway={removed}", status_code=303)
 
 
+@app.post("/admin/{rid}/seller-member/assign-blank")
+def admin_assign_blank_seller_member(rid: int, seller_member: str = Form("")):
+    """Assign currently blank seller/member purchase rows to a member."""
+    try:
+        res = db.assign_blank_seller_member(rid, seller_member)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    msg = (f"assigned+{res['orders']}+order(s)+/ "
+           f"{res['paid_tickets']}+paid+ticket(s)+to+{quote(res['seller_member'])}")
+    return RedirectResponse(f"/admin/{rid}?seller_member_update={msg}", status_code=303)
+
+
 @app.get("/enter/{rid}", response_class=HTMLResponse)
 def free_entry_form(rid: int, err: str = "", ok: str = ""):
     """PUBLIC free-entry page. This is the AMOE -- the legal free path.

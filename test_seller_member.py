@@ -90,7 +90,26 @@ chk("blank seller grouped", blank["pending_tickets"], 4)
 
 print()
 print("=" * 70)
-print("4. Admin dashboard renders seller leaderboard")
+print("4. Blank seller/member rows can be reassigned to a member")
+print("=" * 70)
+onpoint = db.create_order(RID, "Buyer Five", "five@example.com", "7705550005", 1,
+                          "cash", "RAF-FIVE", seller_member="On Point")
+db.confirm_payment(onpoint["lookup_code"], "manual", source="test")
+res = db.assign_blank_seller_member(RID, "On Point")
+chk("blank reassignment order count", res["orders"], 1)
+chk("blank reassignment pending tickets", res["pending_tickets"], 4)
+board = db.seller_member_leaderboard(RID)
+onpoint_row = find(board, "On Point")
+chk("On Point paid tickets after reassignment", onpoint_row["paid_tickets"], 1)
+chk("On Point pending tickets after reassignment", onpoint_row["pending_tickets"], 4)
+if any(r["seller_member"] == "Online / not specified" for r in board):
+    no("blank seller row remained after reassignment")
+else:
+    ok("blank seller row removed after reassignment")
+
+print()
+print("=" * 70)
+print("5. Admin dashboard renders seller leaderboard")
 print("=" * 70)
 admin_html = views.page_admin(
     db.get_raffle(RID),

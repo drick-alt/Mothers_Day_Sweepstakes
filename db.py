@@ -1116,6 +1116,50 @@ def seller_member_leaderboard(rid):
     return [dict(r) for r in rows]
 
 
+def assign_blank_seller_member(rid, seller_member):
+    """Assign blank seller/member purchase or printed orders to a member.
+
+    Narrow admin cleanup for cases where sold tickets were entered without the
+    seller/member name and need to appear on the leaderboard. Does not touch
+    AMOE, giveaway/comp, cancelled, stock, or already-attributed orders.
+    """
+    seller_member = (seller_member or "").strip()
+    if not seller_member:
+        raise ValueError("seller_member is required")
+    conn = connect()
+    try:
+        rows = conn.execute(
+            """SELECT id, quantity, amount_paid, payment_status, payment_method
+               FROM orders
+               WHERE raffle_id=?
+                 AND payment_status IN ('paid','pending')
+                 AND COALESCE(entry_source,'purchase') IN ('purchase','printed')
+                 AND TRIM(COALESCE(seller_member,''))=''""",
+            (rid,)).fetchall()
+        ids = [r["id"] for r in rows]
+        if ids:
+            q = ",".join("?" * len(ids))
+            conn.execute(f"UPDATE orders SET seller_member=? WHERE id IN ({q})",
+                         (seller_member, *ids))
+            oid = ids[0]
+            log_event(conn, oid, "seller_member_assigned",
+                      f"assigned_blank_orders={len(ids)} seller_member={seller_member}")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        conn.close()
+        raise
+    conn.close()
+    return {
+        "orders": len(rows),
+        "paid_tickets": sum(int(r["quantity"] or 0) for r in rows if r["payment_status"] == "paid"),
+        "pending_tickets": sum(int(r["quantity"] or 0) for r in rows if r["payment_status"] == "pending"),
+        "paid_amount": sum(float(r["amount_paid"] or 0) for r in rows if r["payment_status"] == "paid"),
+        "pending_amount": sum(float(r["amount_paid"] or 0) for r in rows if r["payment_status"] == "pending"),
+        "seller_member": seller_member,
+    }
+
+
 def order_events(lookup_code):
     conn = connect()
     rows = conn.execute(
