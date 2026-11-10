@@ -124,8 +124,20 @@ admin_html_for_payments = views.page_admin(
     db.raffle_page_hit_stats(RID), [])
 for needle in ["Paid tickets", "Paid total", "Cancelled tickets", "Cancelled $",
                "not included in paid totals", "$150.00", "paid ticket(s) sold",
-               "box-shadow:0 0 0 4px rgba(34,197,94"]:
+               "box-shadow:0 0 0 4px rgba(34,197,94", "Paid Tickets Sold", "Live Pool"]:
     chk(f"admin payment table contains {needle}", needle in admin_html_for_payments, True)
+
+mismatch_html = views.page_admin(
+    db.get_raffle(RID), 7, 0, 90.0, 0.0, [], [],
+    [{"payment_method": "printed", "paid_orders": 4, "paid_tickets": 8,
+      "paid_amount": 80.0, "pending_tickets": 0, "pending_amount": 0,
+      "cancelled_tickets": 0, "cancelled_amount": 0},
+     {"payment_method": "cashapp", "paid_orders": 1, "paid_tickets": 1,
+      "paid_amount": 10.0, "pending_tickets": 0, "pending_amount": 0,
+      "cancelled_tickets": 0, "cancelled_amount": 0}],
+    [], db.comp_stats(RID), db.printed_counts(RID), db.raffle_page_hit_stats(RID), [])
+chk("top tile uses paid sold tickets, not live pool", 'Paid Tickets Sold</div><div class="value">9</div>' in mismatch_html, True)
+chk("live pool remains separate", 'Live Pool</div><div class="value" style="color:#4ade80">7</div>' in mismatch_html, True)
 
 print()
 print("=" * 68)

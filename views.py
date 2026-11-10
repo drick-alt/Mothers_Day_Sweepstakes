@@ -645,7 +645,8 @@ Telegram, Facebook, and other link-preview crawlers; unique visitors are approxi
 <h1>{escape(raffle['name'])} <span class="badge {raffle['status']}">{raffle['status']}</span></h1>
 <p class="sub">Admin dashboard &middot; <a href="/admin/logout">Log out</a></p>
 <div class="card"><div class="grid">
-<div class="stat"><div class="label">Paid Tickets</div><div class="value">{total}</div></div>
+<div class="stat"><div class="label">Paid Tickets Sold</div><div class="value">{paid_total_tickets}</div></div>
+<div class="stat"><div class="label">Live Pool</div><div class="value" style="color:#4ade80">{total}</div></div>
 <div class="stat"><div class="label">Pending</div>
 <div class="value" style="color:#fbbf24">{pend_t}</div></div>
 <div class="stat"><div class="label">Revenue</div><div class="value">${rev:,.2f}</div></div>
