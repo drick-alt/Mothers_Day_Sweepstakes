@@ -648,6 +648,36 @@ def admin_reject(code: str):
     return RedirectResponse(f"/admin/{order['raffle_id']}", status_code=303)
 
 
+@app.post("/admin/{rid}/manual-ticket")
+def admin_manual_ticket(rid: int,
+                        name: str = Form(""), email: str = Form(""),
+                        phone: str = Form(""), quantity: int = Form(1),
+                        payment_method: str = Form("cash"),
+                        seller_member: str = Form(""), note: str = Form("")):
+    """Create paid tickets directly from the admin console."""
+    if not name.strip():
+        raise HTTPException(400, "Buyer name is required")
+    if quantity < 1 or quantity > 1000:
+        raise HTTPException(400, "Quantity must be between 1 and 1000")
+    allowed = {"cash", "cashapp", "zelle", "check", "manual"}
+    if payment_method not in allowed:
+        raise HTTPException(400, "Invalid payment method")
+    try:
+        order = db.create_admin_live_tickets(
+            rid, name.strip(), email.strip(), phone.strip(), quantity,
+            payment_method, seller_member.strip(), note.strip())
+        if not order:
+            raise ValueError("manual ticket order lookup failed")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    emailed = ""
+    if email.strip():
+        res = _email_receipt(order["lookup_code"])
+        emailed = "+and+receipt+email+sent" if res.get("sent") else "+but+receipt+email+was+not+sent"
+    return RedirectResponse(
+        f"/admin/{rid}?manual_tickets={quantity}{emailed}", status_code=303)
+
+
 @app.post("/admin/{rid}/giveaway/void")
 def admin_void_giveaway(rid: int, receipt_id: str = Form(""),
                         buyer_name: str = Form(""), reason: str = Form("")):

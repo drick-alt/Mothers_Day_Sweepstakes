@@ -527,6 +527,27 @@ in your banking app, then Approve.</p>
 <p class="sub">Tracks the organization member entered on the ticket purchase form. The leader name is green; second place is yellow.</p>
 <table><tr><th>Member</th><th>Paid tickets</th><th>Pending</th><th>Total</th><th>Paid revenue</th><th>Pending $</th><th>Orders</th></tr>{seller_rows}</table></div>"""
 
+    manual_ticket_html = f"""<div class="card"><h2 style="margin-top:0">Manual live ticket entry</h2>
+<p class="sub">Create paid tickets from the admin console. These tickets enter the live drawing pool immediately. If email is filled in, the receipt is emailed.</p>
+<form method="post" action="/admin/{raffle['id']}/manual-ticket">
+<div class="grid" style="margin-top:4px">
+<div><label>Sold to / buyer name *</label><input name="name" required placeholder="Buyer name"></div>
+<div><label>Email (optional receipt)</label><input name="email" type="email" placeholder="buyer@example.com"></div>
+<div><label>Phone (optional)</label><input name="phone" type="tel" placeholder="for winner contact"></div>
+<div><label>Quantity *</label><input name="quantity" type="number" min="1" max="1000" value="1" required></div>
+<div><label>Payment method</label><select name="payment_method">
+<option value="cashapp">Cash App</option>
+<option value="zelle">Zelle</option>
+<option value="cash">Cash</option>
+<option value="check">Check</option>
+<option value="manual">Manual / other</option>
+</select></div>
+<div><label>Organization member who sold this ticket</label><input name="seller_member" placeholder="Member/seller name for leaderboard"></div>
+<div><label>Note / reference</label><input name="note" placeholder="e.g. table sale, receipt ref"></div>
+</div>
+<button type="submit" class="ok" style="margin-top:12px">Create live paid ticket(s)</button>
+</form></div>"""
+
     comp = comp or {"comp": 0, "paid": 0}
     comp_tile = (f'<div class="stat"><div class="label">Giveaway</div>'
                  f'<div class="value" style="color:#d8b4fe">{comp["comp"]}</div></div>')
@@ -680,6 +701,7 @@ Telegram, Facebook, and other link-preview crawlers; unique visitors are approxi
 {comp_tile}
 </div></div>
 {seller_html}
+{manual_ticket_html}
 {details_html}
 {hit_html}
 {prize_html}

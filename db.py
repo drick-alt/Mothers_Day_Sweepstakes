@@ -507,6 +507,17 @@ def create_order(rid, name, email, phone, quantity, payment_method,
             "ticket_numbers": nums}
 
 
+def create_admin_live_tickets(rid, name, email, phone, quantity,
+                              payment_method="cash", seller_member="",
+                              note=""):
+    """Admin-created paid tickets that enter the live pool immediately."""
+    order = create_order(rid, name, email, phone, quantity, payment_method,
+                         memo_code=None, seller_member=seller_member)
+    confirm_payment(order["lookup_code"], note or "admin-manual-entry",
+                    source="admin-manual-entry")
+    return get_order_by_lookup(order["lookup_code"])
+
+
 def confirm_payment(lookup_code, provider_ref=None, source="manual"):
     """Flip an order to paid and activate its tickets.
 
