@@ -1207,6 +1207,58 @@ def assign_blank_seller_member(rid, seller_member):
     }
 
 
+def reassign_seller_member(rid, from_member, to_member):
+    """Move purchase/printed order attribution from one seller/member name to another.
+
+    This powers the admin leaderboard edit workflow when buyers type variants
+    like "Wade", "Wade Larry", or a company name that should credit a specific
+    member. Matching is exact after trimming/case-folding and is intentionally
+    limited to purchase/printed, paid/pending rows so AMOE, comp/giveaway,
+    cancelled, and stock records are not altered.
+    """
+    from_member = (from_member or "").strip()
+    to_member = (to_member or "").strip()
+    if not from_member:
+        raise ValueError("from_member is required")
+    if not to_member:
+        raise ValueError("to_member is required")
+    if from_member.lower() == to_member.lower():
+        raise ValueError("from_member and to_member are the same")
+    conn = connect()
+    try:
+        rows = conn.execute(
+            """SELECT id, quantity, amount_paid, payment_status, payment_method,
+                      seller_member
+               FROM orders
+               WHERE raffle_id=?
+                 AND payment_status IN ('paid','pending')
+                 AND COALESCE(entry_source,'purchase') IN ('purchase','printed')
+                 AND LOWER(TRIM(COALESCE(seller_member,'')))=LOWER(?)""",
+            (rid, from_member)).fetchall()
+        ids = [r["id"] for r in rows]
+        if ids:
+            q = ",".join("?" * len(ids))
+            conn.execute(f"UPDATE orders SET seller_member=? WHERE id IN ({q})",
+                         (to_member, *ids))
+            log_event(conn, ids[0], "seller_member_reassigned",
+                      f"orders={len(ids)} from={from_member} to={to_member}")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        conn.close()
+        raise
+    conn.close()
+    return {
+        "orders": len(rows),
+        "paid_tickets": sum(int(r["quantity"] or 0) for r in rows if r["payment_status"] == "paid"),
+        "pending_tickets": sum(int(r["quantity"] or 0) for r in rows if r["payment_status"] == "pending"),
+        "paid_amount": sum(float(r["amount_paid"] or 0) for r in rows if r["payment_status"] == "paid"),
+        "pending_amount": sum(float(r["amount_paid"] or 0) for r in rows if r["payment_status"] == "pending"),
+        "from_member": from_member,
+        "to_member": to_member,
+    }
+
+
 def order_events(lookup_code):
     conn = connect()
     rows = conn.execute(

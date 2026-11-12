@@ -121,7 +121,36 @@ else:
 
 print()
 print("=" * 70)
-print("5. Admin dashboard renders seller leaderboard")
+print("5. Misspelled/alternate member names can be merged into the correct member")
+print("=" * 70)
+wade = db.create_order(RID, "Buyer Wade", "wade@example.com", "7705550100", 3,
+                       "cash", "RAF-WADE", seller_member="Wade")
+db.confirm_payment(wade["lookup_code"], "manual", source="test")
+wade_larry = db.create_order(RID, "Buyer Wade Larry", "wadel@example.com", "7705550101", 2,
+                             "cash", "RAF-WL", seller_member="Wade Larry")
+db.confirm_payment(wade_larry["lookup_code"], "manual", source="test")
+hubert = db.create_order(RID, "Hubert Buyer", "hubert@example.com", "7705550102", 4,
+                         "cash", "RAF-HUB", seller_member="Hubert Steam Cleaning, Inc.")
+db.confirm_payment(hubert["lookup_code"], "manual", source="test")
+res_wade = db.reassign_seller_member(RID, "Wade", "Kosher")
+res_wade_larry = db.reassign_seller_member(RID, "Wade Larry", "Kosher")
+res_hubert = db.reassign_seller_member(RID, "Hubert Steam Cleaning, Inc.", "On Point")
+chk("Wade reassignment moved tickets", res_wade["paid_tickets"], 3)
+chk("Wade Larry reassignment moved tickets", res_wade_larry["paid_tickets"], 2)
+chk("Hubert reassignment moved tickets", res_hubert["paid_tickets"], 4)
+board = db.seller_member_leaderboard(RID)
+kosher_row = find(board, "Kosher")
+onpoint_row = find(board, "On Point")
+chk("Kosher merged paid tickets", kosher_row["paid_tickets"], 5)
+chk("On Point includes Hubert tickets", onpoint_row["paid_tickets"], 7)
+if any(r["seller_member"] in ["Wade", "Wade Larry", "Hubert Steam Cleaning, Inc."] for r in board):
+    no("old member alias rows remained after reassignment")
+else:
+    ok("old member alias rows removed after reassignment")
+
+print()
+print("=" * 70)
+print("6. Admin dashboard renders seller leaderboard")
 print("=" * 70)
 admin_html = views.page_admin(
     db.get_raffle(RID),
@@ -140,8 +169,11 @@ admin_html = views.page_admin(
 )
 for needle in ["Member sales leaderboard", "Alice Member", "Bob Member", "Paid tickets", "Pending $",
                "Sales Leader", "Second Place", "color:#22c55e", "color:#facc15",
-               "🏆 Alice Member", "🥈 On Point", "leader name is green"]:
+               "Credit / Edit", "Credit to member", "seller-member/reassign",
+               "rankings recalculate after submit"]:
     chk(f"admin contains {needle}", needle in admin_html, True)
+chk("leader has trophy", "🏆" in admin_html, True)
+chk("second place has medal", "🥈" in admin_html, True)
 chk("member leaderboard moved above details", admin_html.find("Member sales leaderboard") < admin_html.find("Printed Tickets"), True)
 chk("create raffle moved near bottom after draw", admin_html.find("Draw</h2>") < admin_html.find("Create another raffle"), True)
 

@@ -707,6 +707,21 @@ def admin_assign_blank_seller_member(rid: int, seller_member: str = Form("")):
     return RedirectResponse(f"/admin/{rid}?seller_member_update={msg}", status_code=303)
 
 
+@app.post("/admin/{rid}/seller-member/reassign")
+def admin_reassign_seller_member(rid: int,
+                                 from_member: str = Form(""),
+                                 to_member: str = Form("")):
+    """Move all exact seller/member attribution rows to a corrected member name."""
+    try:
+        res = db.reassign_seller_member(rid, from_member, to_member)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    msg = (f"moved+{res['orders']}+order(s)+/ "
+           f"{res['paid_tickets']}+paid+ticket(s)+from+{quote(res['from_member'])}"
+           f"+to+{quote(res['to_member'])}")
+    return RedirectResponse(f"/admin/{rid}?seller_member_update={msg}", status_code=303)
+
+
 @app.get("/enter/{rid}", response_class=HTMLResponse)
 def free_entry_form(rid: int, err: str = "", ok: str = ""):
     """PUBLIC free-entry page. This is the AMOE -- the legal free path.
