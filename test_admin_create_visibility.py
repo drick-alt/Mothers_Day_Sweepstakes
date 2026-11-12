@@ -69,7 +69,9 @@ chk("admin-only note present", "Participants cannot see this form" in admin_html
 chk("admin live clock present", 'id="admin-live-clock"' in admin_html, True)
 chk("admin live clock time element present", 'id="admin-live-clock-time"' in admin_html, True)
 chk("admin live clock date element present", 'id="admin-live-clock-date"' in admin_html, True)
-chk("admin live clock ticks every second", "setInterval(tick, 1000)" in admin_html, True)
+chk("admin live status element present", 'id="admin-live-clock-status"' in admin_html, True)
+chk("admin live clock external script present", 'src="/static/admin_live_clock.js"' in admin_html, True)
+chk("admin live clock has server-rendered fallback", "Loading current time" in admin_html, False)
 chk("admin live clock near top", admin_html.find('id="admin-live-clock"') < admin_html.find("Paid Tickets Sold"), True)
 
 print()

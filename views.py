@@ -1,6 +1,8 @@
 """HTML rendering. Server-rendered, no build step."""
 
 from html import escape
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from odds import pct
 
 CSS = """
@@ -681,28 +683,17 @@ Telegram, Facebook, and other link-preview crawlers; unique visitors are approxi
     elif winners:
         draw_btn = f'<p><a href="/admin/{raffle["id"]}/winners">View winners &rarr;</a></p>'
 
-    live_clock_html = """<div id="admin-live-clock" aria-live="polite" style="float:right;margin-top:2px;text-align:right;background:linear-gradient(135deg,#0f172a,#064e3b);border:1px solid rgba(34,197,94,.45);box-shadow:0 0 18px rgba(34,197,94,.18);border-radius:14px;padding:9px 13px;min-width:245px">
+    eastern_now = datetime.now(ZoneInfo("America/New_York"))
+    initial_time = eastern_now.strftime("%-I:%M:%S %p")
+    initial_date = eastern_now.strftime("%a, %b %-d, %Y America/New_York")
+    live_clock_html = f"""<div id="admin-live-clock" data-health-url="/healthz" aria-live="polite" style="float:right;margin-top:2px;text-align:right;background:linear-gradient(135deg,#0f172a,#064e3b);border:1px solid rgba(34,197,94,.45);box-shadow:0 0 18px rgba(34,197,94,.18);border-radius:14px;padding:9px 13px;min-width:260px">
 <div style="font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:#86efac;font-weight:800">Live dashboard time</div>
-<div id="admin-live-clock-time" style="font-size:20px;font-weight:900;color:#eafff2;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">--:--:--</div>
-<div id="admin-live-clock-date" style="font-size:12px;color:#bbf7d0">Loading current time...</div>
+<div id="admin-live-clock-time" style="font-size:20px;font-weight:900;color:#eafff2;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">{escape(initial_time)}</div>
+<div id="admin-live-clock-date" style="font-size:12px;color:#bbf7d0">{escape(initial_date)}</div>
+<div id="admin-live-clock-status" style="display:inline-block;margin-top:6px;padding:3px 10px;border-radius:999px;background:#064e3b;color:#86efac;border:1px solid rgba(34,197,94,.45);font-size:11px;font-weight:900;letter-spacing:.08em;text-transform:uppercase">Live</div>
+<div id="admin-live-clock-note" style="font-size:10px;color:#94a3b8;margin-top:4px">Health check runs every 5 seconds</div>
 </div>
-<script>
-(function(){
-  function tick(){
-    var now = new Date();
-    var time = now.toLocaleTimeString([], {hour:'numeric', minute:'2-digit', second:'2-digit'});
-    var date = now.toLocaleDateString([], {weekday:'short', year:'numeric', month:'short', day:'numeric'});
-    var tz = '';
-    try { tz = ' ' + Intl.DateTimeFormat().resolvedOptions().timeZone; } catch(e) {}
-    var t = document.getElementById('admin-live-clock-time');
-    var d = document.getElementById('admin-live-clock-date');
-    if (t) t.textContent = time;
-    if (d) d.textContent = date + tz;
-  }
-  tick();
-  setInterval(tick, 1000);
-})();
-</script>"""
+<script src="/static/admin_live_clock.js"></script>"""
 
     return shell(f"Admin - {raffle['name']}", f"""
 {live_clock_html}
