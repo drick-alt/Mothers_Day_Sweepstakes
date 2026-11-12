@@ -1130,6 +1130,8 @@ def seller_member_leaderboard(rid):
             "seller_member": member,
             "orders": 0,
             "paid_tickets": 0,
+            "paid_online_tickets": 0,
+            "paid_printed_tickets": 0,
             "pending_tickets": 0,
             "paid_amount": 0.0,
             "pending_amount": 0.0,
@@ -1141,13 +1143,18 @@ def seller_member_leaderboard(rid):
         qty = int(o["quantity"] or 0)
         amt = float(o["amount_paid"] or 0)
         if o["payment_status"] == "paid":
-            if (o["payment_method"] == "printed" or o["entry_source"] == "printed"):
+            is_printed = (o["payment_method"] == "printed" or o["entry_source"] == "printed")
+            if is_printed:
                 qty = int(active_printed.get(o["id"], 0) or 0)
                 amt = qty * ticket_price
                 if qty <= 0:
                     continue
             out["orders"] += 1
             out["paid_tickets"] += qty
+            if is_printed:
+                out["paid_printed_tickets"] += qty
+            else:
+                out["paid_online_tickets"] += qty
             out["paid_amount"] += amt
             out["total_open_tickets"] += qty
         elif o["payment_status"] == "pending":

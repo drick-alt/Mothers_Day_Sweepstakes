@@ -506,6 +506,8 @@ in your banking app, then Approve.</p>
     seller_rows = ""
     for idx, s in enumerate(seller_board):
         paid_t = int(s.get('paid_tickets') or 0)
+        paid_online_t = int(s.get('paid_online_tickets') or 0)
+        paid_printed_t = int(s.get('paid_printed_tickets') or 0)
         pend_t_s = int(s.get('pending_tickets') or 0)
         total_t = int(s.get('total_open_tickets') or 0)
         paid_amt = float(s.get('paid_amount') or 0)
@@ -530,13 +532,14 @@ in your banking app, then Approve.</p>
             member_html = member
         seller_rows += (
             f"<tr><td>{member_html}</td>"
-            f"<td>{paid_t}</td><td>{pend_t_s}</td><td>{total_t}</td>"
+            f"<td>{paid_t}</td><td>{paid_online_t}</td><td>{paid_printed_t}</td>"
+            f"<td>{pend_t_s}</td><td>{total_t}</td>"
             f"<td>${paid_amt:,.2f}</td><td>${pend_amt_s:,.2f}</td>"
             f"<td>{int(s.get('orders') or 0)}</td><td>{action_html}</td></tr>")
-    seller_rows = seller_rows or '<tr><td colspan="8" style="color:#8b93a5">No seller/member data yet.</td></tr>'
+    seller_rows = seller_rows or '<tr><td colspan="10" style="color:#8b93a5">No seller/member data yet.</td></tr>'
     seller_html = f"""<div class="card"><h2 style="margin-top:0">Member sales leaderboard</h2>
-<p class="sub">Tracks the organization member entered on the ticket purchase form. The leader name is green; second place is yellow. Use <b>Credit to member</b> to merge misspelled or alternate names; rankings recalculate after submit.</p>
-<table><tr><th>Member</th><th>Paid tickets</th><th>Pending</th><th>Total</th><th>Paid revenue</th><th>Pending $</th><th>Orders</th><th>Credit / Edit</th></tr>{seller_rows}</table></div>"""
+<p class="sub">Tracks the organization member entered on the ticket purchase form. The leader name is green; second place is yellow. <b>Online paid</b> is non-printed website/manual purchase tickets; <b>Printed paid</b> is activated printed-stub tickets. Use <b>Credit to member</b> to merge misspelled or alternate names; rankings recalculate after submit.</p>
+<table><tr><th>Member</th><th>Paid tickets</th><th>Online paid</th><th>Printed paid</th><th>Pending</th><th>Total</th><th>Paid revenue</th><th>Pending $</th><th>Orders</th><th>Credit / Edit</th></tr>{seller_rows}</table></div>"""
 
     manual_ticket_html = f"""<div class="card"><h2 style="margin-top:0">Manual live ticket entry</h2>
 <p class="sub">Create paid tickets from the admin console. These tickets enter the live drawing pool immediately. If email is filled in, the receipt is emailed.</p>

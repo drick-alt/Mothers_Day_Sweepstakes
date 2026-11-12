@@ -112,6 +112,8 @@ db.return_printed_to_available(RID, printed_nums[:2])
 board = db.seller_member_leaderboard(RID)
 onpoint_row = find(board, "On Point")
 chk("On Point paid tickets exclude returned printed", onpoint_row["paid_tickets"], 3)
+chk("On Point online paid tickets", onpoint_row["paid_online_tickets"], 1)
+chk("On Point printed paid tickets", onpoint_row["paid_printed_tickets"], 2)
 chk("On Point paid amount excludes returned printed", onpoint_row["paid_amount"], 30.0)
 chk("On Point pending unchanged after printed return", onpoint_row["pending_tickets"], 4)
 if any(r["seller_member"] == "Online / not specified" for r in board):
@@ -142,7 +144,11 @@ board = db.seller_member_leaderboard(RID)
 kosher_row = find(board, "Kosher")
 onpoint_row = find(board, "On Point")
 chk("Kosher merged paid tickets", kosher_row["paid_tickets"], 5)
+chk("Kosher online paid tickets", kosher_row["paid_online_tickets"], 5)
+chk("Kosher printed paid tickets", kosher_row["paid_printed_tickets"], 0)
 chk("On Point includes Hubert tickets", onpoint_row["paid_tickets"], 7)
+chk("On Point merged online paid tickets", onpoint_row["paid_online_tickets"], 5)
+chk("On Point merged printed paid tickets", onpoint_row["paid_printed_tickets"], 2)
 if any(r["seller_member"] in ["Wade", "Wade Larry", "Hubert Steam Cleaning, Inc."] for r in board):
     no("old member alias rows remained after reassignment")
 else:
@@ -168,6 +174,7 @@ admin_html = views.page_admin(
     board,
 )
 for needle in ["Member sales leaderboard", "Alice Member", "Bob Member", "Paid tickets", "Pending $",
+               "Online paid", "Printed paid", "non-printed website/manual purchase tickets",
                "Sales Leader", "Second Place", "color:#22c55e", "color:#facc15",
                "Credit / Edit", "Credit to member", "seller-member/reassign",
                "rankings recalculate after submit"]:
