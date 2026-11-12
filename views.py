@@ -681,9 +681,34 @@ Telegram, Facebook, and other link-preview crawlers; unique visitors are approxi
     elif winners:
         draw_btn = f'<p><a href="/admin/{raffle["id"]}/winners">View winners &rarr;</a></p>'
 
+    live_clock_html = """<div id="admin-live-clock" aria-live="polite" style="float:right;margin-top:2px;text-align:right;background:linear-gradient(135deg,#0f172a,#064e3b);border:1px solid rgba(34,197,94,.45);box-shadow:0 0 18px rgba(34,197,94,.18);border-radius:14px;padding:9px 13px;min-width:245px">
+<div style="font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:#86efac;font-weight:800">Live dashboard time</div>
+<div id="admin-live-clock-time" style="font-size:20px;font-weight:900;color:#eafff2;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">--:--:--</div>
+<div id="admin-live-clock-date" style="font-size:12px;color:#bbf7d0">Loading current time...</div>
+</div>
+<script>
+(function(){
+  function tick(){
+    var now = new Date();
+    var time = now.toLocaleTimeString([], {hour:'numeric', minute:'2-digit', second:'2-digit'});
+    var date = now.toLocaleDateString([], {weekday:'short', year:'numeric', month:'short', day:'numeric'});
+    var tz = '';
+    try { tz = ' ' + Intl.DateTimeFormat().resolvedOptions().timeZone; } catch(e) {}
+    var t = document.getElementById('admin-live-clock-time');
+    var d = document.getElementById('admin-live-clock-date');
+    if (t) t.textContent = time;
+    if (d) d.textContent = date + tz;
+  }
+  tick();
+  setInterval(tick, 1000);
+})();
+</script>"""
+
     return shell(f"Admin - {raffle['name']}", f"""
+{live_clock_html}
 <h1>{escape(raffle['name'])} <span class="badge {raffle['status']}">{raffle['status']}</span></h1>
 <p class="sub">Admin dashboard &middot; <a href="/admin/logout">Log out</a></p>
+<div style="clear:both"></div>
 <div class="card"><div class="grid">
 <div class="stat"><div class="label">Paid Tickets Sold</div><div class="value">{paid_total_tickets}</div></div>
 <div class="stat"><div class="label">Live Pool</div><div class="value" style="color:#4ade80">{total}</div></div>

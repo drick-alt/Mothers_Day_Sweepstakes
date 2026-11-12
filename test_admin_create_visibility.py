@@ -66,6 +66,11 @@ admin_html = views.page_admin(
 chk("admin create card present", "Create another raffle" in admin_html, True)
 chk("admin create form action present", 'action="/admin/create"' in admin_html, True)
 chk("admin-only note present", "Participants cannot see this form" in admin_html, True)
+chk("admin live clock present", 'id="admin-live-clock"' in admin_html, True)
+chk("admin live clock time element present", 'id="admin-live-clock-time"' in admin_html, True)
+chk("admin live clock date element present", 'id="admin-live-clock-date"' in admin_html, True)
+chk("admin live clock ticks every second", "setInterval(tick, 1000)" in admin_html, True)
+chk("admin live clock near top", admin_html.find('id="admin-live-clock"') < admin_html.find("Paid Tickets Sold"), True)
 
 print()
 print("=" * 70)
