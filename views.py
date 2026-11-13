@@ -3,7 +3,7 @@
 from html import escape
 from datetime import datetime
 from zoneinfo import ZoneInfo
-from odds import pct
+from odds import compute_odds, pct
 
 CSS = """
 *{box-sizing:border-box;margin:0;padding:0}
@@ -154,7 +154,23 @@ def page_home(raffles, mock=False):
 
 def page_buy(raffle, qty, preview, methods, mock=False):
     prizes = prize_items(raffle)
-    v = preview["at_least_one"]
+    # Public page should show more than one easy odds example without exposing
+    # total tickets sold. The route computes the selected-quantity preview as
+    # if those tickets were added to the current live pool, so recover that
+    # hidden base pool here and render fixed examples for 1 and 5 tickets.
+    try:
+        base_total = max(0, int(preview.get("total_tickets", qty) or qty) - int(qty))
+    except Exception:
+        base_total = 0
+    odds_rows = ""
+    for example_qty in (1, 5):
+        ex = compute_odds(base_total + example_qty, example_qty, raffle["num_prizes"])
+        odds_rows += (
+            f"<tr><td><b>{example_qty} ticket{'s' if example_qty != 1 else ''}</b></td>"
+            f"<td><span class='{_oc(ex['at_least_one'])}' "
+            f"style='font-size:28px'>{pct(ex['at_least_one'])}</span></td>"
+            f"<td>{ex['expected_prizes']:.3f}</td>"
+            f"<td>{pct(ex['per_prize'])}</td></tr>")
 
     pm = ""
     for i, m in enumerate(methods):
@@ -184,11 +200,10 @@ def page_buy(raffle, qty, preview, methods, mock=False):
 <img class="flyer" src="{flyer}"
      alt="{escape(raffle['name'])} flyer showing the prize drawing">
 <div class="flyer-note">Prize details:</div>{prizes}</div>
-<div class="card"><h2 style="margin-top:0">If you enter with {qty} entry(ies) right now</h2>
-<div class="{_oc(v)}">{pct(v)}</div>
-<p class="sub">chance to win at least one prize</p>
-<p style="font-size:13px;color:#8b93a5">Expected prizes: {preview['expected_prizes']:.3f}
-&middot; Per-prize: {pct(preview['per_prize'])}</p></div>
+<div class="card"><h2 style="margin-top:0">Your odds if you enter right now</h2>
+<p class="sub">Compare common entry amounts. Odds update as more tickets enter the live drawing pool.</p>
+<table><tr><th>Entries purchased</th><th>Chance to win at least one prize</th><th>Expected prizes</th><th>Per-prize chance</th></tr>
+{odds_rows}</table></div>
 <div class="card"><h2 style="margin-top:0">Donate &amp; enter</h2>
 <form method="post" action="/buy">
 <input type="hidden" name="raffle_id" value="{raffle['id']}">

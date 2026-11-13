@@ -51,6 +51,10 @@ html = views.page_buy(
 )
 chk("form has seller_member input", 'name="seller_member"' in html, True)
 chk("form label mentions member", "Organization member who sold this ticket" in html, True)
+chk("public odds card has comparison title", "Your odds if you enter right now" in html, True)
+chk("public odds card shows 1 ticket example", "<b>1 ticket</b>" in html, True)
+chk("public odds card shows 5 tickets example", "<b>5 tickets</b>" in html, True)
+chk("public odds card labels at-least-one chance", "Chance to win at least one prize" in html, True)
 
 print()
 print("=" * 70)
