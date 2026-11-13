@@ -156,7 +156,31 @@ else:
 
 print()
 print("=" * 70)
-print("6. Admin dashboard renders seller leaderboard")
+print("6. Pending approval seller/member can be edited before approval")
+print("=" * 70)
+pending_edit = db.create_order(RID, "Pending Edit Buyer", "pendingedit@example.com", "7705550103", 6,
+                               "zelle", "RAF-PEND-EDIT", seller_member="Wrong Member")
+edit_res = db.update_pending_order_seller_member(pending_edit["lookup_code"], "Kosher")
+chk("pending edit returns seller", edit_res["seller_member"], "Kosher")
+pending_rows = db.pending_orders(RID)
+pending_lookup = next((r for r in pending_rows if r["lookup_code"] == pending_edit["lookup_code"]), None)
+if pending_lookup is None:
+    no("pending row lookup after seller edit")
+else:
+    chk("pending row seller updated", pending_lookup["seller_member"], "Kosher")
+board = db.seller_member_leaderboard(RID)
+kosher_row = find(board, "Kosher")
+chk("Kosher pending includes edited pending order", kosher_row["pending_tickets"], 6)
+try:
+    db.confirm_payment(pending_edit["lookup_code"], "manual", source="test")
+    db.update_pending_order_seller_member(pending_edit["lookup_code"], "Should Fail")
+    no("paid order allowed pending edit")
+except ValueError as e:
+    chk("paid order refuses pending edit", "only pending" in str(e), True)
+
+print()
+print("=" * 70)
+print("7. Admin dashboard renders seller leaderboard")
 print("=" * 70)
 admin_html = views.page_admin(
     db.get_raffle(RID),
@@ -177,7 +201,8 @@ for needle in ["Member sales leaderboard", "Alice Member", "Bob Member", "Paid t
                "Online paid", "Printed paid", "non-printed website/manual purchase tickets",
                "Sales Leader", "Second Place", "color:#22c55e", "color:#facc15",
                "Credit / Edit", "Credit to member", "seller-member/reassign",
-               "rankings recalculate after submit"]:
+               "rankings recalculate after submit", "Pending approvals", "/admin/pending/",
+               "edit the member name if needed"]:
     chk(f"admin contains {needle}", needle in admin_html, True)
 chk("leader has trophy", "🏆" in admin_html, True)
 chk("second place has medal", "🥈" in admin_html, True)

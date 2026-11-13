@@ -1029,6 +1029,33 @@ def pending_orders(rid):
     return [dict(r) for r in rows]
 
 
+def update_pending_order_seller_member(lookup_code, seller_member):
+    """Edit seller/member attribution for one pending approval order."""
+    lookup_code = (lookup_code or "").strip().upper()
+    seller_member = (seller_member or "").strip()
+    if not lookup_code:
+        raise ValueError("lookup_code is required")
+    conn = connect()
+    try:
+        o = conn.execute(
+            "SELECT id, raffle_id, payment_status, seller_member FROM orders WHERE lookup_code=?",
+            (lookup_code,)).fetchone()
+        if not o:
+            raise ValueError("order not found")
+        if o["payment_status"] != "pending":
+            raise ValueError("only pending approval orders can be edited here")
+        conn.execute("UPDATE orders SET seller_member=? WHERE id=?", (seller_member, o["id"]))
+        log_event(conn, o["id"], "pending_seller_member_updated",
+                  f"from={o['seller_member'] or ''} to={seller_member}")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        conn.close()
+        raise
+    conn.close()
+    return {"raffle_id": o["raffle_id"], "lookup_code": lookup_code, "seller_member": seller_member}
+
+
 def payment_breakdown(rid):
     """Admin accounting by payment method.
 

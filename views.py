@@ -443,8 +443,17 @@ def page_admin(raffle, total, pend_t, rev, pend_rev, board, pending, breakdown,
     if pending:
         pr = ""
         for o in pending:
+            current_seller = o.get('seller_member') or 'Online / not specified'
+            seller_edit = (
+                f"<div style='margin-bottom:5px'>{escape(current_seller)}</div>"
+                f"<form method='post' action='/admin/pending/{escape(o['lookup_code'])}/seller-member' "
+                f"style='display:flex;gap:6px;align-items:center;margin:0'>"
+                f"<input name='seller_member' value='{escape(o.get('seller_member') or '')}' "
+                f"placeholder='Member name' style='min-width:145px;padding:6px 8px;font-size:12px'>"
+                f"<button type='submit' class='sm ok'>Update</button>"
+                f"</form>")
             pr += (f"<tr><td>{escape(o['buyer_name'])}</td>"
-                   f"<td>{escape(o.get('seller_member') or 'Online / not specified')}</td>"
+                   f"<td>{seller_edit}</td>"
                    f"<td>{escape(o['payment_method'])}</td>"
                    f"<td>{o['quantity']}</td><td>${o['amount_paid']:,.2f}</td>"
                    f"<td><code>{escape(o['memo_code'] or '-')}</code></td>"
@@ -456,7 +465,7 @@ def page_admin(raffle, total, pend_t, rev, pend_rev, board, pending, breakdown,
         pend_html = f"""<div class="card"><h2 style="margin-top:0">
 Pending approvals ({len(pending)})</h2>
 <p class="sub">Zelle/cash orders awaiting your confirmation. Match the memo code
-in your banking app, then Approve.</p>
+in your banking app, edit the member name if needed, then Approve.</p>
 <table><tr><th>Entrant</th><th>Sold by</th><th>Method</th><th>Qty</th><th>Amount</th>
 <th>Memo</th><th>Action</th></tr>{pr}</table></div>"""
 

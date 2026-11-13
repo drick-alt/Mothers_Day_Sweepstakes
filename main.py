@@ -648,6 +648,17 @@ def admin_reject(code: str):
     return RedirectResponse(f"/admin/{order['raffle_id']}", status_code=303)
 
 
+@app.post("/admin/pending/{code}/seller-member")
+def admin_update_pending_seller_member(code: str, seller_member: str = Form("")):
+    """Edit seller/member on a single pending approval order."""
+    try:
+        res = db.update_pending_order_seller_member(code, seller_member)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return RedirectResponse(
+        f"/admin/{res['raffle_id']}?pending_seller_member=updated", status_code=303)
+
+
 @app.post("/admin/{rid}/manual-ticket")
 def admin_manual_ticket(rid: int,
                         name: str = Form(""), email: str = Form(""),
