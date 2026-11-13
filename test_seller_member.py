@@ -153,6 +153,19 @@ if any(r["seller_member"] in ["Wade", "Wade Larry", "Hubert Steam Cleaning, Inc.
     no("old member alias rows remained after reassignment")
 else:
     ok("old member alias rows removed after reassignment")
+blank_paid = db.create_order(RID, "Blank Paid", "blankpaid@example.com", "7705550104", 2,
+                             "cash", "RAF-BLANK-PAID")
+db.confirm_payment(blank_paid["lookup_code"], "manual", source="test")
+blank_pending = db.create_order(RID, "Blank Pending", "blankpending@example.com", "7705550105", 1,
+                                "zelle", "RAF-BLANK-PEND")
+blank_label_res = db.reassign_seller_member(RID, "Online / not specified", "On Point")
+chk("Online/not specified reassignment paid tickets", blank_label_res["paid_tickets"], 2)
+chk("Online/not specified reassignment pending tickets", blank_label_res["pending_tickets"], 1)
+board = db.seller_member_leaderboard(RID)
+if any(r["seller_member"] == "Online / not specified" for r in board):
+    no("Online / not specified row remained after label reassignment")
+else:
+    ok("Online / not specified row removed after label reassignment")
 
 print()
 print("=" * 70)

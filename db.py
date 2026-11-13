@@ -1258,17 +1258,33 @@ def reassign_seller_member(rid, from_member, to_member):
         raise ValueError("to_member is required")
     if from_member.lower() == to_member.lower():
         raise ValueError("from_member and to_member are the same")
+    from_is_blank_label = from_member.lower() in {
+        "online / not specified",
+        "online/not specified",
+        "not specified",
+    }
     conn = connect()
     try:
-        rows = conn.execute(
-            """SELECT id, quantity, amount_paid, payment_status, payment_method,
-                      seller_member
-               FROM orders
-               WHERE raffle_id=?
-                 AND payment_status IN ('paid','pending')
-                 AND COALESCE(entry_source,'purchase') IN ('purchase','printed')
-                 AND LOWER(TRIM(COALESCE(seller_member,'')))=LOWER(?)""",
-            (rid, from_member)).fetchall()
+        if from_is_blank_label:
+            rows = conn.execute(
+                """SELECT id, quantity, amount_paid, payment_status, payment_method,
+                          seller_member
+                   FROM orders
+                   WHERE raffle_id=?
+                     AND payment_status IN ('paid','pending')
+                     AND COALESCE(entry_source,'purchase') IN ('purchase','printed')
+                     AND TRIM(COALESCE(seller_member,''))=''""",
+                (rid,)).fetchall()
+        else:
+            rows = conn.execute(
+                """SELECT id, quantity, amount_paid, payment_status, payment_method,
+                          seller_member
+                   FROM orders
+                   WHERE raffle_id=?
+                     AND payment_status IN ('paid','pending')
+                     AND COALESCE(entry_source,'purchase') IN ('purchase','printed')
+                     AND LOWER(TRIM(COALESCE(seller_member,'')))=LOWER(?)""",
+                (rid, from_member)).fetchall()
         ids = [r["id"] for r in rows]
         if ids:
             q = ",".join("?" * len(ids))
