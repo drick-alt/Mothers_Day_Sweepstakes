@@ -330,6 +330,10 @@ def page_receipt(order, o, marginal, winners, offline_inst=None, add_methods=Non
     odds_html = ""
     if ps == "paid":
         v = o["at_least_one"]
+        plus_five = compute_odds(int(o["total_tickets"] or 0) + 5,
+                                 int(o["my_tickets"] or 0) + 5,
+                                 int(o["num_prizes"] or 0))
+        five_increase = max(0.0, plus_five["at_least_one"] - v)
         dist = "".join(f"<tr><td>Win exactly {j}</td><td>{pct(pr)}</td></tr>"
                        for j, pr in sorted(o["distribution"].items()) if pr > 1e-7)
         odds_html = f"""
@@ -340,10 +344,19 @@ def page_receipt(order, o, marginal, winners, offline_inst=None, add_methods=Non
 <div class="stat"><div class="label">Your tickets</div><div class="value">{o['my_tickets']}</div></div>
 <div class="stat"><div class="label">Odds</div><div class="value" style="font-size:18px">
 {('1 in ' + format(o['one_in'], '.1f')) if o['one_in'] else '-'}</div></div>
-<div class="stat"><div class="label">Expected prizes</div><div class="value">{o['expected_prizes']:.3f}</div></div>
 </div>
-<p style="font-size:13px;color:#8b93a5;margin-top:14px">One more ticket would add
-<b style="color:#4ade80">{pct(marginal)}</b>.</p></div>
+<div class="grid" style="margin-top:16px">
+  <div class="stat" style="border:2px solid #22c55e;background:linear-gradient(135deg,#052e1a,#123524);padding:18px">
+    <div class="label">If you buy 1 more ticket</div>
+    <div style="font-size:18px;color:#d1fae5;margin-top:6px">Your odds increase by</div>
+    <div style="font-size:34px;line-height:1.05;font-weight:900;color:#4ade80;margin-top:4px">{pct(marginal)}</div>
+  </div>
+  <div class="stat" style="border:2px solid #22c55e;background:linear-gradient(135deg,#052e1a,#123524);padding:18px">
+    <div class="label">If you buy 5 more tickets</div>
+    <div style="font-size:18px;color:#d1fae5;margin-top:6px">Your odds increase by</div>
+    <div style="font-size:34px;line-height:1.05;font-weight:900;color:#4ade80;margin-top:4px">{pct(five_increase)}</div>
+  </div>
+</div></div>
 <div class="card"><h2 style="margin-top:0">Exact outcome breakdown</h2>
 <table><tr><th>Outcome</th><th>Probability</th></tr>{dist}</table></div>"""
 

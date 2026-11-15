@@ -53,6 +53,10 @@ chk("receipt has save-code tile", "Save this code to get back to your tickets" i
 chk("entrant tile appears before save-code tile", contains_in_order(html, "Entrant", "Save this code to get back to your tickets"))
 chk("receipt add form present", f'action="/receipt/{root["lookup_code"]}/add-tickets"' in html)
 chk("purchase more copy present", "Purchase more tickets with this code" in html)
+chk("expected prizes stat removed", "Expected prizes" in html, False)
+chk("one-more odds callout present", "If you buy 1 more ticket" in html)
+chk("five-more odds callout present", "If you buy 5 more tickets" in html)
+chk("larger odds callout style present", "font-size:34px" in html)
 
 print()
 print("=" * 70)
