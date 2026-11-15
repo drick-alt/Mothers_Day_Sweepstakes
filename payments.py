@@ -388,33 +388,37 @@ def offline_instructions(method_key, order):
         return {
             "title": "Send payment via Zelle",
             "steps": [
+                f"Copy this RAF memo code exactly: {memo}",
                 f"Open your bank's app and choose Zelle",
                 f"Send {amt} to: {ZELLE_HANDLE}",
                 f"Recipient name: {ZELLE_NAME}",
-                f"IMPORTANT -- put this in the memo/note: {memo}",
-                "Your tickets activate once the organizer confirms receipt.",
+                f"Paste {memo} into the Zelle memo / notes section before you send the payment.",
+                "Finish/send the payment in Zelle. Your tickets activate once the organizer confirms receipt.",
             ],
             "handle": ZELLE_HANDLE,
             "amount": amt,
             "memo": memo,
-            "warning": ("Zelle has no merchant API, so confirmation is manual. "
-                        "Your ticket numbers are reserved but do not enter the "
-                        "drawing until the organizer verifies the payment."),
+            "warning": ("Zelle payment must be completed in your bank app. Copy the RAF memo code "
+                        "and paste it into the Zelle memo/notes field so we can match "
+                        "your payment. Your ticket numbers are reserved but do not enter "
+                        "the drawing until the organizer verifies the payment."),
         }
     if method_key == "cashapp":
         return {
             "title": "Send payment via Cash App",
             "steps": [
+                f"Copy this RAF memo code exactly: {memo}",
                 f"Open Cash App and send {amt} to: {CASHAPP_HANDLE}",
-                f"IMPORTANT -- put this in the note/memo: {memo}",
-                "Your tickets activate once the organizer confirms receipt.",
+                f"Paste {memo} into the Cash App note / memo section before you send the payment.",
+                "Finish/send the payment in Cash App. Your tickets activate once the organizer confirms receipt.",
             ],
             "handle": CASHAPP_HANDLE,
             "amount": amt,
             "memo": memo,
-            "warning": ("Cash App payment confirmation is manual. Your ticket "
-                        "numbers are reserved but do not enter the drawing "
-                        "until the organizer verifies the payment."),
+            "warning": ("Cash App payment must be completed in Cash App. Copy the RAF memo code "
+                        "and paste it into the Cash App note/memo field so we can match "
+                        "your payment. Your ticket numbers are reserved but do not enter "
+                        "the drawing until the organizer verifies the payment."),
         }
     return {
         "title": "Pay in person",

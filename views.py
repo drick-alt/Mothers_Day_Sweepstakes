@@ -241,8 +241,11 @@ def page_offline_pay(order, inst):
 <div class="stat"><div class="label">Send To</div>
 <div class="value" style="font-size:15px">{escape(inst['handle'])}</div></div>
 </div>
-<p style="margin-top:18px;font-size:13px;color:#9aa3b2">Put this code in the payment memo:</p>
-<div class="memo">{escape(inst['memo'])}</div></div>
+<p style="margin-top:18px;font-size:15px;color:#e5e7eb;font-weight:700">Step 1: Copy this RAF memo code</p>
+<div class="memo" style="font-size:30px;letter-spacing:2px;margin-top:6px">{escape(inst['memo'])}</div>
+<div class="warn" style="margin-top:14px">
+  <b>Important:</b> Open {escape(inst['title'].replace('Send payment via ', ''))}, complete the payment there, and paste this RAF code into the memo / notes field before you send. This is how we match your payment to your tickets.
+</div></div>
 <div class="card"><h2 style="margin-top:0">Steps</h2><ol>{steps}</ol></div>
 <div class="card"><p style="font-size:13px;color:#9aa3b2">Save your lookup code:</p>
 <div class="code">{escape(order['lookup_code'])}</div>
