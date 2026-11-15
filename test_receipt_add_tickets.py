@@ -73,6 +73,14 @@ chk("bundle includes both order codes", len(bundle["order_lookup_codes"]), 2)
 chk("bundle shows paid+pending as pending", bundle["payment_status"], "pending")
 chk("pending add-on does not enter live pool", db.total_tickets(RID), 2)
 chk("pending add-on ticket rows included on receipt", len(bundle["ticket_rows"]), 5)
+rejected = db.create_addon_order(root["lookup_code"], 4, "zelle", "RAF-REJECT")
+db.cancel_order(rejected["lookup_code"], "rejected by admin")
+bundle_after_reject = db.get_receipt_bundle(root["lookup_code"])
+assert bundle_after_reject is not None
+chk("rejected add-on excluded from receipt ticket total", bundle_after_reject["quantity"], 5)
+chk("rejected add-on excluded from receipt amount", bundle_after_reject["amount_paid"], 50.0)
+chk("rejected add-on ticket rows hidden", len(bundle_after_reject["ticket_rows"]), 5)
+chk("rejected add-on does not enter live pool", db.total_tickets(RID), 2)
 html2 = views.page_receipt(
     bundle,
     compute_odds(db.total_tickets(RID), db.buyer_ticket_count(RID, bundle["buyer_id"]), bundle["num_prizes"]),

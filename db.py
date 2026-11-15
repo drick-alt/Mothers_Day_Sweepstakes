@@ -1037,24 +1037,31 @@ def get_receipt_bundle(code):
     if not rows:
         conn.close()
         return None
-    order_ids = [r["id"] for r in rows]
-    q = ",".join("?" * len(order_ids))
-    tickets = conn.execute(
-        f"""SELECT ticket_number,status,order_id FROM tickets
-             WHERE order_id IN ({q}) ORDER BY id""", order_ids).fetchall()
+    accepted_rows = [r for r in rows if r["payment_status"] != "cancelled"]
+    display_order_ids = [r["id"] for r in accepted_rows]
+    tickets = []
+    if display_order_ids:
+        q = ",".join("?" * len(display_order_ids))
+        tickets = conn.execute(
+            f"""SELECT ticket_number,status,order_id FROM tickets
+                 WHERE order_id IN ({q}) AND status!='void'
+                 ORDER BY id""", display_order_ids).fetchall()
     conn.close()
 
     base = dict(rows[0])
     base["num_prizes"] = active_prize_count(base)
     base["lookup_code"] = root_code
     base["orders"] = [dict(r) for r in rows]
+    base["accepted_orders"] = [dict(r) for r in accepted_rows]
     base["order_lookup_codes"] = [r["lookup_code"] for r in rows]
-    base["quantity"] = sum(int(r["quantity"] or 0) for r in rows)
-    base["amount_paid"] = sum(float(r["amount_paid"] or 0) for r in rows)
+    base["quantity"] = sum(int(r["quantity"] or 0) for r in accepted_rows)
+    base["amount_paid"] = sum(float(r["amount_paid"] or 0) for r in accepted_rows)
     base["ticket_rows"] = [dict(t) for t in tickets]
     base["tickets"] = [t["ticket_number"] for t in tickets]
-    statuses = {r["payment_status"] for r in rows}
-    if "pending" in statuses:
+    statuses = {r["payment_status"] for r in accepted_rows}
+    if not accepted_rows:
+        base["payment_status"] = "cancelled"
+    elif "pending" in statuses:
         base["payment_status"] = "pending"
     elif "paid" in statuses:
         base["payment_status"] = "paid"
