@@ -282,7 +282,7 @@ Nothing was charged.</div>
 &larr; Back to buy tickets</a></p></div>""")
 
 
-def page_receipt(order, o, marginal, winners, offline_inst=None):
+def page_receipt(order, o, marginal, winners, offline_inst=None, add_methods=None, mock=False):
     ps = order["payment_status"]
     tix = "".join(
         f'<span class="ticket{" pending" if t["status"] != "active" else ""}">'
@@ -304,6 +304,28 @@ def page_receipt(order, o, marginal, winners, offline_inst=None):
                      f'<p style="font-size:13px;color:#9aa3b2">Memo code:</p>'
                      f'<div class="memo">{escape(offline_inst["memo"])}</div>'
                      f'<ol style="margin-top:14px">{steps}</ol></div>')
+
+    add_pm = ""
+    for m in (add_methods or []):
+        if not m.get("ready"):
+            continue
+        checked = "checked" if not add_pm else ""
+        add_pm += (f'<label><input type="radio" name="payment_method" '
+                   f'value="{m["key"]}" {checked}><span>{escape(m["label"])}'
+                   f'<span class="n">{escape(m["note"])}</span></span></label>')
+    add_more_html = ""
+    if order.get("raffle_status") == "open" and ps != "cancelled" and add_pm:
+        add_more_html = f"""
+<div style="margin-top:18px;border-top:1px solid #2b3142;padding-top:14px">
+  <h3 style="margin:0 0 8px;color:#fff">Purchase more tickets with this code</h3>
+  <p style="font-size:12px;color:#9aa3b2;margin-bottom:10px">Additional tickets stay connected to this same lookup code. New tickets enter the drawing after payment is confirmed.</p>
+  <form method="post" action="/receipt/{escape(order['lookup_code'])}/add-tickets">
+    <label>Additional entries</label>
+    <input name="quantity" type="number" min="1" max="1000" value="1" required>
+    <label style="margin-top:12px">Donation method</label><div class="pm">{add_pm}</div>
+    <button type="submit" class="ok">Purchase more tickets</button>
+  </form>
+</div>"""
 
     odds_html = ""
     if ps == "paid":
@@ -341,13 +363,6 @@ def page_receipt(order, o, marginal, winners, offline_inst=None):
 <h1>Receipt <span class="badge {ps}">{ps}</span></h1>
 <p class="sub">{escape(order['raffle_name'])}</p>
 {banner}
-<div class="card"><p style="font-size:13px;color:#8b93a5;margin-bottom:8px">
-Save this code to get back to your tickets:</p>
-<div class="code">{escape(order['lookup_code'])}</div>
-<p style="font-size:12px;color:#8b93a5;margin-top:10px">
-Receipt: {escape(order['receipt_id'])} &middot;
-{'<b style="color:#d8b4fe">FREE GIVEAWAY TICKET</b>' if order['payment_method'] == 'comp'
- else 'Paid via: ' + escape(order['payment_method'])}</p></div>
 <div class="card"><div class="grid">
 <div class="stat"><div class="label">Entrant</div>
 <div class="value" style="font-size:16px">{escape(order['buyer_name'])}</div></div>
@@ -355,6 +370,16 @@ Receipt: {escape(order['receipt_id'])} &middot;
 <div class="stat"><div class="label">Amount</div>
 <div class="value">${order['amount_paid']:,.2f}</div></div>
 </div></div>
+<div class="card"><p style="font-size:13px;color:#8b93a5;margin-bottom:8px">
+Save this code to get back to your tickets:</p>
+<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+  <div class="code">{escape(order['lookup_code'])}</div>
+</div>
+<p style="font-size:12px;color:#8b93a5;margin-top:10px">
+Receipt: {escape(order['receipt_id'])} &middot;
+{'<b style="color:#d8b4fe">FREE GIVEAWAY TICKET</b>' if order['payment_method'] == 'comp'
+ else 'Paid via: ' + escape(order['payment_method'])}</p>
+{add_more_html}</div>
 {inst_html}{odds_html}
 <div class="card"><h2 style="margin-top:0">Your tickets</h2><div>{tix}</div>
 {'<p style="font-size:12px;color:#8b93a5;margin-top:10px">Dashed = pending payment</p>' if ps != 'paid' else ''}

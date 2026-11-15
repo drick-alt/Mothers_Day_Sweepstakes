@@ -155,8 +155,11 @@ def _ensure_current_schema(conn):
         ("paid_at", "TEXT"),
         ("entry_source", "TEXT DEFAULT 'purchase'"),
         ("seller_member", "TEXT DEFAULT ''"),
+        ("parent_lookup_code", "TEXT DEFAULT ''"),
     ]:
         _add_col(conn, "orders", name, decl)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_orders_parent_lookup "
+                 "ON orders(parent_lookup_code)")
 
     _add_col(conn, "tickets", "status", "TEXT NOT NULL DEFAULT 'active'")
 
@@ -505,6 +508,54 @@ def create_order(rid, name, email, phone, quantity, payment_method,
             "memo_code": memo_code, "payment_method": payment_method,
             "seller_member": (seller_member or '').strip(),
             "ticket_numbers": nums}
+
+
+def create_addon_order(parent_lookup_code, quantity, payment_method, memo_code=None):
+    """Create an additional ticket purchase tied back to an existing receipt code.
+
+    The add-on gets its own internal lookup code for payment processing, but
+    the public receipt view aggregates it under the original/root code.
+    """
+    parent_lookup_code = (parent_lookup_code or "").strip().upper()
+    if quantity < 1:
+        raise ValueError("quantity must be >= 1")
+    conn = connect()
+    try:
+        parent = conn.execute(
+            """SELECT o.*, b.name buyer_name, b.email buyer_email, b.phone buyer_phone
+               FROM orders o JOIN buyers b ON b.id=o.buyer_id
+               WHERE o.lookup_code=?""", (parent_lookup_code,)).fetchone()
+        if not parent:
+            raise ValueError("parent receipt not found")
+        root_code = (parent["parent_lookup_code"] or parent["lookup_code"]).strip().upper()
+        if parent["payment_status"] == "cancelled":
+            raise ValueError("cannot add tickets to a cancelled receipt")
+        raffle = conn.execute("SELECT status FROM raffles WHERE id=?", (parent["raffle_id"],)).fetchone()
+        if not raffle or raffle["status"] != "open":
+            raise ValueError("raffle is closed")
+    finally:
+        conn.close()
+
+    order = create_order(parent["raffle_id"], parent["buyer_name"], parent["buyer_email"],
+                         parent["buyer_phone"], quantity, payment_method, memo_code,
+                         parent["seller_member"] or "")
+    conn = connect()
+    try:
+        conn.execute("UPDATE orders SET parent_lookup_code=? WHERE lookup_code=?",
+                     (root_code, order["lookup_code"]))
+        child = conn.execute("SELECT id FROM orders WHERE lookup_code=?",
+                             (order["lookup_code"],)).fetchone()
+        if child:
+            log_event(conn, child["id"], "addon_order_created",
+                      f"parent_lookup_code={root_code}")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        conn.close()
+        raise
+    conn.close()
+    order["parent_lookup_code"] = root_code
+    return order
 
 
 def create_admin_live_tickets(rid, name, email, phone, quantity,
@@ -958,6 +1009,65 @@ def get_order_by_lookup(code):
     d["tickets"] = [t["ticket_number"] for t in tix]
     d["ticket_rows"] = [dict(t) for t in tix]
     return d
+
+
+def get_receipt_bundle(code):
+    """Return the public receipt for a root code plus any add-on orders.
+
+    If called with an internal add-on lookup code, the returned receipt is
+    canonicalized back to the original/root lookup code so the entrant keeps
+    using one public code.
+    """
+    code = (code or "").strip().upper()
+    conn = connect()
+    root = conn.execute("SELECT * FROM orders WHERE lookup_code=?", (code,)).fetchone()
+    if not root:
+        conn.close()
+        return None
+    root_code = (root["parent_lookup_code"] or root["lookup_code"] or code).strip().upper()
+    rows = conn.execute(
+        """SELECT o.*, b.name buyer_name, b.email buyer_email, b.phone buyer_phone,
+                  r.name raffle_name, r.num_prizes, r.ticket_price,
+                  r.status raffle_status, r.prize_1,r.prize_2,r.prize_3,r.prize_4
+           FROM orders o JOIN buyers b ON b.id=o.buyer_id
+           JOIN raffles r ON r.id=o.raffle_id
+           WHERE o.lookup_code=? OR o.parent_lookup_code=?
+           ORDER BY CASE WHEN o.lookup_code=? THEN 0 ELSE 1 END, o.id""",
+        (root_code, root_code, root_code)).fetchall()
+    if not rows:
+        conn.close()
+        return None
+    order_ids = [r["id"] for r in rows]
+    q = ",".join("?" * len(order_ids))
+    tickets = conn.execute(
+        f"""SELECT ticket_number,status,order_id FROM tickets
+             WHERE order_id IN ({q}) ORDER BY id""", order_ids).fetchall()
+    conn.close()
+
+    base = dict(rows[0])
+    base["num_prizes"] = active_prize_count(base)
+    base["lookup_code"] = root_code
+    base["orders"] = [dict(r) for r in rows]
+    base["order_lookup_codes"] = [r["lookup_code"] for r in rows]
+    base["quantity"] = sum(int(r["quantity"] or 0) for r in rows)
+    base["amount_paid"] = sum(float(r["amount_paid"] or 0) for r in rows)
+    base["ticket_rows"] = [dict(t) for t in tickets]
+    base["tickets"] = [t["ticket_number"] for t in tickets]
+    statuses = {r["payment_status"] for r in rows}
+    if "pending" in statuses:
+        base["payment_status"] = "pending"
+    elif "paid" in statuses:
+        base["payment_status"] = "paid"
+    elif len(statuses) == 1:
+        base["payment_status"] = next(iter(statuses))
+    else:
+        base["payment_status"] = "mixed"
+    methods = []
+    for r in rows:
+        if r["payment_method"] not in methods:
+            methods.append(r["payment_method"])
+    base["payment_method"] = ", ".join(methods)
+    return base
 
 
 def get_order_by_lookup_for_receipt(receipt_id):

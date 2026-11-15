@@ -462,7 +462,7 @@ async def webhook_stripe(request: Request):
 
 @app.get("/receipt/{code}", response_class=HTMLResponse)
 def receipt(code: str):
-    order = db.get_order_by_lookup(code)
+    order = db.get_receipt_bundle(code)
     if not order:
         raise HTTPException(404, "Receipt not found")
     rid = order["raffle_id"]
@@ -471,10 +471,71 @@ def receipt(code: str):
     p = order["num_prizes"]
     o = compute_odds(total, mine, p)
     marginal = marginal_ticket_value(total, mine, p) if total else 0.0
-    inst = (payments.offline_instructions(order["payment_method"], order)
-            if order["payment_status"] == "pending"
-            and payments.is_offline(order["payment_method"]) else None)
-    return views.page_receipt(order, o, marginal, db.get_winners(rid), inst)
+    inst = None
+    # If this is a single pending offline order, keep showing payment steps on
+    # the receipt. Bundled add-on receipts route the buyer through /pay/{child}.
+    if len(order.get("orders", [])) == 1:
+        inst = (payments.offline_instructions(order["payment_method"], order)
+                if order["payment_status"] == "pending"
+                and payments.is_offline(order["payment_method"]) else None)
+    return views.page_receipt(order, o, marginal, db.get_winners(rid), inst,
+                              payments.available_methods(), payments.MOCK_MODE)
+
+
+@app.post("/receipt/{code}/add-tickets")
+def receipt_add_tickets(code: str, quantity: int = Form(1), payment_method: str = Form("card")):
+    parent = db.get_order_by_lookup(code)
+    if not parent:
+        raise HTTPException(404, "Receipt not found")
+    root_code = (parent.get("parent_lookup_code") or parent["lookup_code"]).strip().upper()
+    quantity = max(1, min(int(quantity or 1), 1000))
+    m = payments.method_info(payment_method)
+    if not m:
+        raise HTTPException(400, f"Unknown payment method: {payment_method}")
+    if not payments.is_public(payment_method):
+        raise HTTPException(403, "That payment method is not available")
+    if not payments.method_ready(payment_method):
+        raise HTTPException(503, "That payment method is not configured yet")
+
+    raffle = db.get_raffle(parent["raffle_id"])
+    if not raffle:
+        raise HTTPException(404, "Raffle not found")
+    allowed, period_msg = sw.entry_allowed(raffle)
+    if not allowed:
+        raise HTTPException(400, period_msg)
+    try:
+        hh_limit = raffle["entry_limit_per_household"] or 0
+    except (KeyError, IndexError):
+        hh_limit = 0
+    if hh_limit:
+        held = db.entries_for_household(parent["raffle_id"], parent.get("buyer_address", ""),
+                                        parent.get("buyer_email", ""))
+        if held + quantity > hh_limit:
+            raise HTTPException(400, f"Limit {hh_limit} entry(ies) per household. This household already holds {held}.")
+
+    memo = payments.gen_memo_code() if m["kind"] == "offline" else None
+    try:
+        order = db.create_addon_order(root_code, quantity, payment_method, memo)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    child_code = order["lookup_code"]
+
+    if m["kind"] == "offline":
+        _email_receipt(child_code)
+        return RedirectResponse(f"/pay/{child_code}", status_code=303)
+    if m["kind"] == "stripe":
+        url, ref = payments.create_stripe_checkout(
+            order, raffle,
+            success_url=f"/paid/{child_code}",
+            cancel_url=f"/cancelled/{child_code}",
+            method_key=payment_method)
+    else:
+        url, ref = payments.create_paypal_order(
+            order, raffle,
+            return_url=f"/paid/{child_code}", cancel_url=f"/cancelled/{child_code}")
+    db.set_provider_ref(child_code, ref)
+    return RedirectResponse(url, status_code=303)
+
 
 
 @app.post("/admin/{rid}/printed/seed")
