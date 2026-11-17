@@ -1373,7 +1373,7 @@ def reassign_seller_member(rid, from_member, to_member):
         raise ValueError("from_member is required")
     if not to_member:
         raise ValueError("to_member is required")
-    if from_member.lower() == to_member.lower():
+    if from_member == to_member:
         raise ValueError("from_member and to_member are the same")
     from_is_blank_label = from_member.lower() in {
         "online / not specified",

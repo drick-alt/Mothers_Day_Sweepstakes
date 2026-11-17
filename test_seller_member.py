@@ -165,7 +165,18 @@ blank_pending = db.create_order(RID, "Blank Pending", "blankpending@example.com"
 blank_label_res = db.reassign_seller_member(RID, "Online / not specified", "On Point")
 chk("Online/not specified reassignment paid tickets", blank_label_res["paid_tickets"], 2)
 chk("Online/not specified reassignment pending tickets", blank_label_res["pending_tickets"], 1)
+case_fix = db.create_order(RID, "Geezy Buyer", "geezy@example.com", "7705550106", 4,
+                           "cash", "RAF-GEEZY", seller_member="GEEZY")
+db.confirm_payment(case_fix["lookup_code"], "manual", source="test")
+case_res = db.reassign_seller_member(RID, "GEEZY", "Geezy")
+chk("case-only member rename moved tickets", case_res["paid_tickets"], 4)
 board = db.seller_member_leaderboard(RID)
+geezy_row = find(board, "Geezy")
+chk("case-only member rename shows corrected casing", geezy_row["paid_tickets"], 4)
+if any(r["seller_member"] == "GEEZY" for r in board):
+    no("old all-caps Geezy row remained after case rename")
+else:
+    ok("old all-caps Geezy row removed after case rename")
 if any(r["seller_member"] == "Online / not specified" for r in board):
     no("Online / not specified row remained after label reassignment")
 else:
