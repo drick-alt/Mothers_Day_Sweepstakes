@@ -563,10 +563,13 @@ in your banking app, edit the member name if needed, then Approve.</p>
 
     leader = seller_board[0] if len(seller_board) >= 1 else None
     runner_up = seller_board[1] if len(seller_board) >= 2 else None
+    third_place = seller_board[2] if len(seller_board) >= 3 else None
     leader_name = _seller_name(leader.get('seller_member')) if leader else "-"
     runner_name = _seller_name(runner_up.get('seller_member')) if runner_up else "-"
+    third_name = _seller_name(third_place.get('seller_member')) if third_place else "-"
     leader_tickets = int(leader.get('paid_tickets') or 0) if leader else 0
     runner_tickets = int(runner_up.get('paid_tickets') or 0) if runner_up else 0
+    third_tickets = int(third_place.get('paid_tickets') or 0) if third_place else 0
 
     seller_rows = ""
     for idx, s in enumerate(seller_board):
@@ -593,6 +596,9 @@ in your banking app, edit the member name if needed, then Approve.</p>
         elif idx == 1:
             member_html = (f"<span style='color:#facc15;font-weight:900;"
                            f"text-shadow:0 0 10px rgba(250,204,21,.45)'>🥈 {member}</span>")
+        elif idx == 2:
+            member_html = (f"<span style='color:#fb923c;font-weight:900;"
+                           f"text-shadow:0 0 10px rgba(251,146,60,.45)'>🥉 {member}</span>")
         else:
             member_html = member
         seller_rows += (
@@ -603,7 +609,7 @@ in your banking app, edit the member name if needed, then Approve.</p>
             f"<td>{int(s.get('orders') or 0)}</td><td>{action_html}</td></tr>")
     seller_rows = seller_rows or '<tr><td colspan="10" style="color:#8b93a5">No seller/member data yet.</td></tr>'
     seller_html = f"""<div class="card"><h2 style="margin-top:0">Member sales leaderboard</h2>
-<p class="sub">Tracks the organization member entered on the ticket purchase form. The leader name is green; second place is yellow. <b>Online paid</b> is non-printed website/manual purchase tickets; <b>Printed paid</b> is activated printed-stub tickets. Use <b>Credit to member</b> to merge misspelled or alternate names; rankings recalculate after submit.</p>
+<p class="sub">Tracks the organization member entered on the ticket purchase form. The leader name is green; second place is yellow; third place is bronze. <b>Online paid</b> is non-printed website/manual purchase tickets; <b>Printed paid</b> is activated printed-stub tickets. Use <b>Credit to member</b> to merge misspelled or alternate names; rankings recalculate after submit.</p>
 <table><tr><th>Member</th><th>Paid tickets</th><th>Online paid</th><th>Printed paid</th><th>Pending</th><th>Total</th><th>Paid revenue</th><th>Pending $</th><th>Orders</th><th>Credit / Edit</th></tr>{seller_rows}</table></div>"""
 
     manual_ticket_html = f"""<div class="card"><h2 style="margin-top:0">Manual live ticket entry</h2>
@@ -791,6 +797,9 @@ Telegram, Facebook, and other link-preview crawlers; unique visitors are approxi
 <div class="stat"><div class="label">Second Place</div>
 <div class="value" style="color:#facc15;font-size:22px;text-shadow:0 0 10px rgba(250,204,21,.45)">{escape(runner_name)}</div>
 <div style="font-size:12px;color:#fde68a;margin-top:4px">{runner_tickets} paid ticket(s)</div></div>
+<div class="stat"><div class="label">Third Place</div>
+<div class="value" style="color:#fb923c;font-size:22px;text-shadow:0 0 10px rgba(251,146,60,.45)">{escape(third_name)}</div>
+<div style="font-size:12px;color:#fed7aa;margin-top:4px">{third_tickets} paid ticket(s)</div></div>
 {comp_tile}
 </div></div>
 {seller_html}

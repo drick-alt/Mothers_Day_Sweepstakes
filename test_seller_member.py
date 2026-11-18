@@ -227,13 +227,14 @@ admin_html = views.page_admin(
 )
 for needle in ["Member sales leaderboard", "Alice Member", "Bob Member", "Paid tickets", "Pending $",
                "Online paid", "Printed paid", "non-printed website/manual purchase tickets",
-               "Sales Leader", "Second Place", "color:#22c55e", "color:#facc15",
-               "Credit / Edit", "Credit to member", "seller-member/reassign",
+               "Sales Leader", "Second Place", "Third Place", "color:#22c55e", "color:#facc15", "color:#fb923c",
+               "third place is bronze", "Credit / Edit", "Credit to member", "seller-member/reassign",
                "rankings recalculate after submit", "Pending approvals", "/admin/pending/",
                "edit the member name if needed"]:
     chk(f"admin contains {needle}", needle in admin_html, True)
 chk("leader has trophy", "🏆" in admin_html, True)
 chk("second place has medal", "🥈" in admin_html, True)
+chk("third place has bronze medal", "🥉" in admin_html, True)
 chk("member leaderboard moved above details", admin_html.find("Member sales leaderboard") < admin_html.find("Printed Tickets"), True)
 chk("create raffle moved near bottom after draw", admin_html.find("Draw</h2>") < admin_html.find("Create another raffle"), True)
 
